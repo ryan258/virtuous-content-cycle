@@ -16,6 +16,9 @@ const exportCsvBtn = document.getElementById('export-csv-btn');
 const originalInputEl = document.getElementById('original-input');
 const contentTypeEl = document.getElementById('content-type');
 const targetAudienceEl = document.getElementById('target-audience');
+const targetMarketCountEl = document.getElementById('target-market-count');
+const randomCountEl = document.getElementById('random-count');
+const totalParticipantsEl = document.getElementById('total-participants');
 const contentIdDisplay = document.getElementById('content-id-display');
 const aiModeDisplay = document.getElementById('ai-mode-display');
 const userReviewSection = document.getElementById('user-review-section');
@@ -27,6 +30,10 @@ const actionStatus = document.getElementById('action-status');
 const focusGroupSummary = document.getElementById('focus-group-summary');
 const detailedFeedbackPanel = document.getElementById('detailed-feedback');
 const detailedFeedbackContent = document.getElementById('detailed-feedback-content');
+const cycleInfo = document.getElementById('cycle-info');
+const contentPreview = document.getElementById('content-preview');
+const selectAllFeedbackBtn = document.getElementById('select-all-feedback');
+const deselectAllFeedbackBtn = document.getElementById('deselect-all-feedback');
 
 // Status message helpers
 function showStatus(element, message, type = 'loading') {
@@ -48,18 +55,31 @@ function setButtonLoading(button, loading) {
     }
 }
 
-function openTab(evt, tabName) {
-    var i, tabcontent, tablinks;
-    tabcontent = document.getElementsByClassName("tab-content");
-    for (i = 0; i < tabcontent.length; i++) {
-        tabcontent[i].style.display = "none";
-    }
-    tablinks = document.getElementsByClassName("tab-link");
-    for (i = 0; i < tablinks.length; i++) {
-        tablinks[i].className = tablinks[i].className.replace(" active", "");
-    }
-    document.getElementById(tabName).style.display = "block";
-    evt.currentTarget.className += " active";
+function updateCycleInfo(data) {
+    const statusDisplay = {
+        'created': 'Created - Ready for Focus Group',
+        'awaiting_focus_group': 'Awaiting Focus Group',
+        'focus_group_complete': 'Focus Group Complete - Ready for Editor',
+        'editor_complete': 'Editor Complete - Ready for Review',
+        'user_review_complete': 'Review Complete'
+    };
+
+    cycleInfo.innerHTML = `
+        <h3>Cycle ${data.cycle} <span class="status-badge ${data.status}">${statusDisplay[data.status] || data.status}</span></h3>
+        <p><strong>Content Type:</strong> ${data.metadata.contentType}</p>
+        <p><strong>Target Audience:</strong> ${data.metadata.targetAudience}</p>
+        <p><strong>Max Cycles:</strong> ${data.metadata.maxCycles}</p>
+    `;
+}
+
+function updateContentPreview(data) {
+    const version = data.editorPass ? 'Latest (After Editor)' : 'Original';
+    const content = data.currentVersion;
+
+    contentPreview.innerHTML = `
+        <h3>Content Version: ${version}</h3>
+        <pre>${content}</pre>
+    `;
 }
 
 function displayFocusGroupSummary(data) {
@@ -89,14 +109,17 @@ function displayFocusGroupSummary(data) {
 function displayDetailedFeedback(data) {
     const ratings = data.focusGroupRatings;
 
-    detailedFeedbackContent.innerHTML = ratings.map(rating => {
+    detailedFeedbackContent.innerHTML = ratings.map((rating, index) => {
         const ratingClass = rating.rating >= 7 ? '' : rating.rating >= 4 ? 'medium' : 'low';
         return `
-            <div class="persona-card">
-                <h3>
-                    <span>${rating.participantId}</span>
-                    <span class="rating-badge ${ratingClass}">${rating.rating}/10</span>
-                </h3>
+            <div class="persona-card" data-participant-id="${rating.participantId}">
+                <div class="card-header">
+                    <input type="checkbox" class="feedback-checkbox" data-participant-id="${rating.participantId}" checked>
+                    <h3>
+                        <span>${rating.participantId}</span>
+                        <span class="rating-badge ${ratingClass}">${rating.rating}/10</span>
+                    </h3>
+                </div>
                 <p><em>${rating.participantType === 'target_market' ? '🎯 Target Market' : '🌐 Random Participant'}</em></p>
                 <div class="feedback-section">
                     <strong>👍 Likes:</strong>
@@ -117,13 +140,40 @@ function displayDetailedFeedback(data) {
     detailedFeedbackPanel.style.display = 'block';
 }
 
+// Select/Deselect all feedback checkboxes
+selectAllFeedbackBtn.addEventListener('click', () => {
+    document.querySelectorAll('.feedback-checkbox').forEach(cb => cb.checked = true);
+});
+
+deselectAllFeedbackBtn.addEventListener('click', () => {
+    document.querySelectorAll('.feedback-checkbox').forEach(cb => cb.checked = false);
+});
+
+// Update total participant count when inputs change
+targetMarketCountEl.addEventListener('input', updateParticipantTotal);
+randomCountEl.addEventListener('input', updateParticipantTotal);
+
+function updateParticipantTotal() {
+    const targetMarket = parseInt(targetMarketCountEl.value) || 0;
+    const random = parseInt(randomCountEl.value) || 0;
+    totalParticipantsEl.textContent = targetMarket + random;
+}
+
 createBtn.addEventListener('click', async () => {
     const originalInput = originalInputEl.value;
     const contentType = contentTypeEl.value;
     const targetAudience = targetAudienceEl.value;
+    const targetMarketCount = parseInt(targetMarketCountEl.value) || 3;
+    const randomCount = parseInt(randomCountEl.value) || 2;
 
     if (!originalInput || !contentType || !targetAudience) {
         showStatus(statusMessage, 'Please fill in all fields to create content.', 'error');
+        setTimeout(() => hideStatus(statusMessage), 3000);
+        return;
+    }
+
+    if (targetMarketCount + randomCount === 0) {
+        showStatus(statusMessage, 'Focus group must have at least 1 participant.', 'error');
         setTimeout(() => hideStatus(statusMessage), 3000);
         return;
     }
@@ -142,6 +192,10 @@ createBtn.addEventListener('click', async () => {
                     targetAudience,
                     maxCycles: 5,
                     convergenceThreshold: 0.8,
+                    focusGroupConfig: {
+                        targetMarketCount,
+                        randomCount,
+                    }
                 }
             }),
         });
@@ -156,19 +210,23 @@ createBtn.addEventListener('click', async () => {
         currentCycle = data.cycle;
         contentIdDisplay.textContent = `Content ID: ${currentContentId}`;
 
-        showStatus(statusMessage, 'Content created successfully!', 'success');
-        setTimeout(() => hideStatus(statusMessage), 3000);
+        showStatus(statusMessage, 'Content created! Starting focus group...', 'success');
 
         updateUI(data);
+
+        // Automatically run focus group
+        runFocusGroupAutomatically();
     } catch (error) {
-        showStatus(statusMessage, `Error: ${error.message}`, 'error');
+        const errorMsg = error.message || 'Failed to fetch - is the server running?';
+        showStatus(statusMessage, `Error: ${errorMsg}`, 'error');
         console.error('Error creating content:', error);
+        alert(`Failed to create content:\n${errorMsg}\n\nMake sure the server is running with: npm run dev`);
     } finally {
         setButtonLoading(createBtn, false);
     }
 });
 
-runFocusGroupBtn.addEventListener('click', async () => {
+async function runFocusGroupAutomatically() {
     setButtonLoading(runFocusGroupBtn, true);
     showStatus(actionStatus, 'Running focus group (this may take 30-60 seconds)...');
 
@@ -180,8 +238,8 @@ runFocusGroupBtn.addEventListener('click', async () => {
         }
         const data = await response.json();
 
-        showStatus(actionStatus, 'Focus group completed! View feedback below.', 'success');
-        setTimeout(() => hideStatus(actionStatus), 5000);
+        showStatus(actionStatus, 'Focus group completed! Review feedback and run editor.', 'success');
+        hideStatus(statusMessage);
 
         // Show immediate feedback summary
         if (data.aggregatedFeedback && data.focusGroupRatings) {
@@ -189,26 +247,44 @@ runFocusGroupBtn.addEventListener('click', async () => {
         }
 
         updateUI(data);
-
-        // Auto-switch to Feedback Timeline tab to show results
-        const feedbackTab = document.querySelector('.tab-link[onclick*="feedback"]');
-        if (feedbackTab) {
-            feedbackTab.click();
-        }
     } catch (error) {
-        showStatus(actionStatus, `Error: ${error.message}`, 'error');
+        const errorMsg = error.message || 'Failed to fetch';
+        showStatus(actionStatus, `Error: ${errorMsg}`, 'error');
         console.error('Error running focus group:', error);
+        console.error('Full error details:', { error, contentId: currentContentId });
+        hideStatus(statusMessage);
     } finally {
         setButtonLoading(runFocusGroupBtn, false);
     }
+}
+
+runFocusGroupBtn.addEventListener('click', async () => {
+    runFocusGroupAutomatically();
 });
 
 runEditorBtn.addEventListener('click', async () => {
+    // Get selected feedback
+    const selectedCheckboxes = document.querySelectorAll('.feedback-checkbox:checked');
+    const selectedParticipantIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.participantId);
+
+    if (selectedParticipantIds.length === 0) {
+        showStatus(actionStatus, 'Please select at least one feedback to incorporate.', 'error');
+        setTimeout(() => hideStatus(actionStatus), 3000);
+        return;
+    }
+
     setButtonLoading(runEditorBtn, true);
-    showStatus(actionStatus, 'Running AI editor (this may take 15-30 seconds)...');
+    showStatus(actionStatus, `Running AI editor with ${selectedParticipantIds.length} selected feedback items...`);
 
     try {
-        const response = await fetch(`${API_URL}/${currentContentId}/run-editor`, { method: 'POST' });
+        const response = await fetch(`${API_URL}/${currentContentId}/run-editor`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                selectedParticipantIds
+            })
+        });
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.message || 'Failed to run editor');
@@ -281,12 +357,9 @@ async function handleUserReview(approved, continueToNextCycle) {
     }
 }
 
-exportJsonBtn.addEventListener('click', () => exportContent('json'));
-exportCsvBtn.addEventListener('click', () => exportContent('csv'));
-
-async function exportContent(format) {
+exportJsonBtn.addEventListener('click', async () => {
     try {
-        const response = await fetch(`${API_URL}/${currentContentId}/export?format=${format}`);
+        const response = await fetch(`${API_URL}/${currentContentId}/export?format=json`);
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.message || 'Failed to export content');
@@ -295,7 +368,7 @@ async function exportContent(format) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `content-${currentContentId}.${format}`;
+        a.download = `content-${currentContentId}.json`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -303,11 +376,14 @@ async function exportContent(format) {
         alert(`Error: ${error.message}`);
         console.error('Error exporting content:', error);
     }
-}
+});
 
 
 function updateUI(data) {
-    runFocusGroupBtn.disabled = data.status !== 'created' && data.status !== 'awaiting_focus_group';
+    // Only show re-run focus group button if we're in awaiting_focus_group state
+    runFocusGroupBtn.style.display = data.status === 'awaiting_focus_group' ? 'block' : 'none';
+    runFocusGroupBtn.disabled = data.status !== 'awaiting_focus_group';
+
     runEditorBtn.disabled = data.status !== 'focus_group_complete';
     userReviewSection.style.display = data.status === 'editor_complete' ? 'block' : 'none';
 
@@ -316,6 +392,13 @@ function updateUI(data) {
         focusGroupSummary.style.display = 'none';
         detailedFeedbackPanel.style.display = 'none';
     }
+
+    // Update cycle info and content preview
+    updateCycleInfo(data);
+    updateContentPreview(data);
+
+    // Enable export if we have content
+    exportJsonBtn.disabled = !currentContentId;
 
     if (data.aiMeta?.mode) {
         const mode = data.aiMeta.mode;
@@ -337,110 +420,6 @@ function updateUI(data) {
             diffViewer.textContent = 'Diff library not loaded. Showing plain text comparison:\n\nOriginal:\n' + data.originalInput + '\n\nRevised:\n' + data.currentVersion;
         }
     }
-    
-    renderCharts(data);
-    renderFeedbackTimeline(data);
-    renderContentEvolution(data);
-    renderDetails(data);
 }
 
-function renderCharts(data) {
-    if (typeof Chart === 'undefined') {
-        console.error('Chart.js library not loaded');
-        return;
-    }
-
-    const ratingChartCtx = document.getElementById('rating-chart');
-    if (!ratingChartCtx) return;
-
-    // Destroy existing chart if it exists
-    if (ratingChart) {
-        ratingChart.destroy();
-    }
-
-    // Create new chart
-    ratingChart = new Chart(ratingChartCtx.getContext('2d'), {
-        type: 'line',
-        data: {
-            labels: data.statusHistory.map(h => h.timestamp),
-            datasets: [{
-                label: 'Average Rating',
-                data: data.statusHistory.map(() => data.aggregatedFeedback ? data.aggregatedFeedback.averageRating : 0),
-                borderColor: 'rgb(75, 192, 192)',
-                tension: 0.1
-            }]
-        },
-    });
-
-    const costTracker = document.getElementById('cost-tracker');
-    const estimatedCost = data.metadata?.costEstimate || 0;
-    if (estimatedCost > 0) {
-        costTracker.textContent = `Estimated Cost: $${estimatedCost}`;
-        costTracker.style.display = 'block';
-    } else {
-        costTracker.textContent = 'Cost tracking disabled (using free models)';
-        costTracker.style.display = 'block';
-    }
-}
-
-async function renderFeedbackTimeline(data) {
-    const feedbackTimeline = document.getElementById('feedback-timeline');
-    const history = await (await fetch(`${API_URL}/${data.id}/history`)).json();
-
-    feedbackTimeline.innerHTML = history.map(cycle => {
-        if (!cycle.focusGroupRatings || cycle.focusGroupRatings.length === 0) {
-            return `
-                <div class="cycle-feedback">
-                    <h4>Cycle ${cycle.cycle}</h4>
-                    <p><em>No focus group feedback yet</em></p>
-                </div>
-            `;
-        }
-
-        const aggregated = cycle.aggregatedFeedback ? `
-            <div class="aggregated-summary">
-                <h5>Summary</h5>
-                <p><strong>Average Rating:</strong> ${cycle.aggregatedFeedback.averageRating.toFixed(2)}/10</p>
-                <p><strong>Top Likes:</strong> ${cycle.aggregatedFeedback.topLikes.join(', ')}</p>
-                <p><strong>Top Dislikes:</strong> ${cycle.aggregatedFeedback.topDislikes.join(', ')}</p>
-            </div>
-        ` : '';
-
-        const individualFeedback = cycle.focusGroupRatings.map(rating => `
-            <div class="persona-feedback">
-                <h6>${rating.participantId} (${rating.participantType})</h6>
-                <p><strong>Rating:</strong> ${rating.rating}/10</p>
-                <p><strong>Likes:</strong> ${rating.likes.join(', ') || 'None'}</p>
-                <p><strong>Dislikes:</strong> ${rating.dislikes.join(', ') || 'None'}</p>
-                <p><strong>Suggestions:</strong> ${rating.suggestions}</p>
-            </div>
-        `).join('');
-
-        return `
-            <div class="cycle-feedback">
-                <h4>Cycle ${cycle.cycle}</h4>
-                ${aggregated}
-                <h5>Individual Feedback</h5>
-                ${individualFeedback}
-            </div>
-        `;
-    }).join('');
-}
-
-async function renderContentEvolution(data) {
-    const contentEvolution = document.getElementById('content-evolution');
-    const history = await (await fetch(`${API_URL}/${data.id}/history`)).json();
-
-    contentEvolution.innerHTML = history.map(cycle => `
-        <div class="cycle-content">
-            <h4>Cycle ${cycle.cycle}</h4>
-            <pre>${cycle.currentVersion}</pre>
-        </div>
-    `).join('');
-}
-
-async function renderDetails(data) {
-    const detailsContent = document.getElementById('details-content');
-    const history = await (await fetch(`${API_URL}/${data.id}/history`)).json();
-    detailsContent.innerHTML = `<pre>${JSON.stringify(history, null, 2)}</pre>`;
-}
+// Removed old dashboard rendering functions - no longer needed

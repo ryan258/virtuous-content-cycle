@@ -29,7 +29,7 @@ function getClient() {
   return cachedClient;
 }
 
-const getEditorRevision = async (originalContent, aggregatedFeedback) => {
+const getEditorRevision = async (originalContent, aggregatedFeedback, selectedFeedback = null) => {
   const { editorModel } = getModels();
   try {
     if (useMockAi) {
@@ -41,6 +41,17 @@ const getEditorRevision = async (originalContent, aggregatedFeedback) => {
         timestamp: new Date().toISOString(),
         modelUsed: 'mock-editor',
       };
+    }
+
+    // Build detailed feedback context if individual feedback is provided
+    let detailedFeedback = '';
+    if (selectedFeedback && selectedFeedback.length > 0) {
+      detailedFeedback = '\n\nDetailed feedback from selected participants:\n' +
+        selectedFeedback.map(f => `
+- ${f.participantId} (${f.participantType}, rated ${f.rating}/10):
+  Likes: ${f.likes.join(', ')}
+  Dislikes: ${f.dislikes.join(', ')}
+  Suggestions: ${f.suggestions}`).join('\n');
     }
 
     const client = getClient();
@@ -73,7 +84,7 @@ Focus group feedback summary:
 - Average rating: ${aggregatedFeedback.averageRating}/10
 - Top likes: ${aggregatedFeedback.topLikes.join(', ')}
 - Top dislikes: ${aggregatedFeedback.topDislikes.join(', ')}
-- Specific suggestions: ${aggregatedFeedback.feedbackThemes.map(t => `${t.theme} (${t.sentiment})`).join(', ')}`
+- Specific suggestions: ${aggregatedFeedback.feedbackThemes.map(t => `${t.theme} (${t.sentiment})`).join(', ')}${detailedFeedback}`
         },
       ],
     });
@@ -102,25 +113,57 @@ Focus group feedback summary:
   }
 };
 
-const getFocusGroupFeedback = async (content) => {
+const getFocusGroupFeedback = async (content, focusGroupConfig = {}) => {
   const { focusModel } = getModels();
+  const targetMarketCount = focusGroupConfig.targetMarketCount || 3;
+  const randomCount = focusGroupConfig.randomCount || 2;
+
   if (useMockAi) {
-    return { feedback: buildMockFocusGroupFeedback(content), mode: 'mock', focusModel };
+    return { feedback: buildMockFocusGroupFeedback(content, targetMarketCount, randomCount), mode: 'mock', focusModel };
   }
 
   try {
-    const feedback = await Promise.all(personas.map(persona => getFeedbackFromPersona(content, persona, focusModel)));
+    // Select personas based on configuration
+    const selectedPersonas = selectPersonas(targetMarketCount, randomCount);
+    const feedback = await Promise.all(selectedPersonas.map(persona => getFeedbackFromPersona(content, persona, focusModel)));
     const valid = feedback.filter(f => !f.error && typeof f.rating === 'number' && f.rating > 0);
     if (valid.length === 0) {
       console.warn('Focus group API returned no valid feedback; using mock fallback.');
-      return { feedback: buildMockFocusGroupFeedback(content), mode: 'live-fallback', focusModel, lastError: 'No valid focus group responses received.' };
+      return { feedback: buildMockFocusGroupFeedback(content, targetMarketCount, randomCount), mode: 'live-fallback', focusModel, lastError: 'No valid focus group responses received.' };
     }
     return { feedback, mode: 'live', focusModel };
   } catch (err) {
     console.warn('Focus group API failed, falling back to mock feedback:', err.message);
-    return { feedback: buildMockFocusGroupFeedback(content), mode: 'live-fallback', focusModel, lastError: err.message };
+    return { feedback: buildMockFocusGroupFeedback(content, targetMarketCount, randomCount), mode: 'live-fallback', focusModel, lastError: err.message };
   }
 };
+
+function selectPersonas(targetMarketCount, randomCount) {
+  const targetMarketPersonas = personas.filter(p => p.type === 'target_market');
+  const randomPersonas = personas.filter(p => p.type === 'random');
+
+  const selected = [];
+
+  // Add target market personas (cycle through if we need more than available)
+  for (let i = 0; i < targetMarketCount; i++) {
+    const persona = targetMarketPersonas[i % targetMarketPersonas.length];
+    selected.push({
+      ...persona,
+      id: `${persona.id}_${Math.floor(i / targetMarketPersonas.length) + 1}`,
+    });
+  }
+
+  // Add random personas (cycle through if we need more than available)
+  for (let i = 0; i < randomCount; i++) {
+    const persona = randomPersonas[i % randomPersonas.length];
+    selected.push({
+      ...persona,
+      id: `${persona.id}_${Math.floor(i / randomPersonas.length) + 1}`,
+    });
+  }
+
+  return selected;
+}
 
 const getFeedbackFromPersona = async (content, persona, focusModel) => {
   try {
@@ -232,10 +275,11 @@ const getFeedbackThemes = (likes, dislikes) => {
     }));
 };
 
-function buildMockFocusGroupFeedback(content) {
+function buildMockFocusGroupFeedback(content, targetMarketCount = 3, randomCount = 2) {
+  const selectedPersonas = selectPersonas(targetMarketCount, randomCount);
   const now = new Date();
   const baseRating = Math.max(6, Math.min(9, 7 + (content.length % 3) - 1));
-  return personas.map((persona, idx) => {
+  return selectedPersonas.map((persona, idx) => {
     const rating = Math.min(10, Math.max(4, baseRating + ((idx % 2 === 0) ? 1 : -1)));
     const likes = ['clarity', 'tone', 'structure'].slice(0, 2);
     const dislikes = ['needs stronger hook', 'add specifics'].slice(0, 1 + (idx % 2));

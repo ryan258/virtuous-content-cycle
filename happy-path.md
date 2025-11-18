@@ -1,14 +1,59 @@
-# Happy Path: Using the Virtuous Content Cycle API
+# Happy Path: Using the Virtuous Content Cycle
 
-This document outlines the "happy path" workflow for using the Virtuous Content Cycle API. This workflow demonstrates the intended sequence of API calls to create, refine, and finalize a piece of content.
+This document outlines the "happy path" workflows for using the Virtuous Content Cycle - both via the Web UI and the API.
 
 ## Prerequisites
 
 - The server is running (`npm run dev`).
-- You have a tool like `curl` or Postman to make API requests.
-- The environment variable `OPENROUTER_API_KEY` is set.
+- For API usage: You have a tool like `curl` or Postman to make API requests.
+- For live AI: The environment variable `OPENROUTER_API_KEY` is set (optional for mock mode).
 
-## The Workflow
+## Web UI Workflow
+
+The easiest way to use the system is through the web interface at `http://localhost:3000`.
+
+### Steps:
+
+1. **Create Content**
+   - Enter your initial content in the text area
+   - Specify content type (e.g., "blog post", "product description")
+   - Specify target audience (e.g., "tech professionals", "ecommerce shoppers")
+   - Configure focus group size:
+     - **Target Market Participants**: 1-10 (people matching your target audience)
+     - **Random Participants**: 0-10 (diverse perspectives)
+   - Click **Create**
+   - The focus group will automatically run (30-60 seconds)
+
+2. **Review Focus Group Feedback**
+   - View aggregated feedback summary in the Actions panel
+   - Review detailed feedback from each participant in the right panel
+   - Each persona card shows:
+     - Rating (1-10)
+     - Likes
+     - Dislikes
+     - Suggestions
+   - Use checkboxes to select which feedback to incorporate
+   - Use "Select All" / "Deselect All" buttons for quick selection
+
+3. **Run Editor**
+   - Ensure at least one feedback checkbox is selected
+   - Click **Run Editor**
+   - The AI editor will revise the content based on selected feedback
+   - Review the diff showing changes
+
+4. **User Review**
+   - Review the editor's changes in the diff viewer
+   - Optionally make manual edits in the text area
+   - Add notes if desired
+   - Choose:
+     - **Approve & Continue**: Start next cycle
+     - **Approve & Stop**: Finalize this version
+     - **Discard & Use Original**: Reject changes and revert
+
+5. **Export**
+   - Click **Export History as JSON** to download all cycles
+
+## API Workflow
 
 The workflow consists of the following steps:
 
@@ -29,15 +74,18 @@ The first step is to create a new piece of content. This is done by sending a `P
 ```bash
 curl -X POST http://localhost:3000/api/content/create \
 -H "Content-Type: application/json" \
--d 
-'{'
+-d '{
   "originalInput": "This is the first draft of my new blog post about AI ethics.",
   "metadata": {
     "contentType": "blogpost",
     "targetAudience": "tech professionals",
     "costEstimate": 0,
     "maxCycles": 3,
-    "convergenceThreshold": 0.8
+    "convergenceThreshold": 0.8,
+    "focusGroupConfig": {
+      "targetMarketCount": 3,
+      "randomCount": 2
+    }
   }
 }'
 ```
@@ -107,9 +155,20 @@ The API will respond with the updated state, now including `focusGroupRatings` a
 
 With the focus group feedback, you can now ask the AI editor to revise the content. Send a `POST` request to the `/api/content/:id/run-editor` endpoint.
 
-**Request:**
+You can optionally specify which participants' feedback to incorporate using `selectedParticipantIds`:
+
+**Request (all feedback):**
 ```bash
 curl -X POST http://localhost:3000/api/content/content-2025-11-17-.../run-editor
+```
+
+**Request (selective feedback):**
+```bash
+curl -X POST http://localhost:3000/api/content/content-2025-11-17-.../run-editor \
+-H "Content-Type: application/json" \
+-d '{
+  "selectedParticipantIds": ["target_market_1_1", "random_1_1"]
+}'
 ```
 
 **Response:**
@@ -141,11 +200,10 @@ After the editor's revision, you can perform a user review. You can approve the 
 ```bash
 curl -X POST http://localhost:3000/api/content/content-2025-11-17-.../user-review \
 -H "Content-Type: application/json" \
--d 
-'{'
+-d '{
   "approved": true,
   "continueToNextCycle": true,
-  "notes": "The editor did a great job. Let\'s see if we can improve it further."
+  "notes": "The editor did a great job. Let'\''s see if we can improve it further."
 }'
 ```
 

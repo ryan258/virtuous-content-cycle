@@ -266,11 +266,38 @@ button.loading::before {
     overflow-y: auto;
 }
 
-.detailed-feedback-panel h2 {
-    margin-top: 0;
-    color: #007bff;
+.detailed-feedback-panel .feedback-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
     border-bottom: 2px solid #007bff;
     padding-bottom: 10px;
+}
+
+.detailed-feedback-panel h2 {
+    margin: 0;
+    color: #007bff;
+}
+
+.feedback-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.small-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    background: white;
+    border: 1px solid #007bff;
+    color: #007bff;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.small-btn:hover {
+    background: #007bff;
+    color: white;
 }
 
 .persona-card {
@@ -282,8 +309,22 @@ button.loading::before {
     margin-bottom: 15px;
 }
 
+.persona-card .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.persona-card .feedback-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
 .persona-card h3 {
-    margin: 0 0 10px 0;
+    margin: 0;
+    flex: 1;
     color: #007bff;
     font-size: 16px;
     display: flex;
@@ -322,4 +363,123 @@ button.loading::before {
     display: block;
     margin-bottom: 4px;
     color: #555;
+}
+
+.cycle-info {
+    background: white;
+    padding: 15px;
+    border-radius: 5px;
+    margin: 15px 0;
+    border-left: 4px solid #28a745;
+}
+
+.cycle-info h3 {
+    margin-top: 0;
+    color: #28a745;
+}
+
+.cycle-info .status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    margin-left: 10px;
+}
+
+.cycle-info .status-badge.created {
+    background: #6c757d;
+    color: white;
+}
+
+.cycle-info .status-badge.focus_group_complete {
+    background: #17a2b8;
+    color: white;
+}
+
+.cycle-info .status-badge.editor_complete {
+    background: #ffc107;
+    color: #333;
+}
+
+.cycle-info .status-badge.user_review_complete {
+    background: #28a745;
+    color: white;
+}
+
+.content-preview {
+    background: white;
+    padding: 15px;
+    border-radius: 5px;
+    margin: 15px 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.content-preview h3 {
+    margin-top: 0;
+    color: #007bff;
+}
+
+.content-preview pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #333;
+}
+
+.export-section {
+    margin-top: 20px;
+}
+
+.export-section h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+.focus-group-config {
+    background: #e7f3ff;
+    padding: 12px;
+    border-radius: 5px;
+    margin: 15px 0;
+}
+
+.focus-group-config h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #007bff;
+}
+
+.focus-group-config .input-group {
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+}
+
+.focus-group-config label {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.focus-group-config input[type="number"] {
+    width: 60px;
+    padding: 4px 8px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.focus-group-config .participant-total {
+    margin: 10px 0 0 0;
+    font-size: 13px;
+    font-weight: bold;
+    color: #28a745;
+    text-align: center;
+}
+
+.focus-group-config .participant-total span {
+    color: #007bff;
+    font-size: 16px;
 }

@@ -7,11 +7,14 @@ The Virtuous Content Cycle is a powerful API designed to iteratively improve con
 ## Features
 
 -   **Iterative Content Improvement:** Refine content over multiple cycles.
--   **AI-Powered Focus Groups:** Simulate a focus group to get diverse feedback on your content.
--   **AI-Powered Editor:** Automatically revise your content based on the focus group feedback.
+-   **AI-Powered Focus Groups:** Simulate a focus group to get diverse feedback on your content with configurable participant counts (target market vs. random participants).
+-   **Selective Feedback Incorporation:** Choose which focus group feedback to incorporate into the editor revision via checkboxes.
+-   **AI-Powered Editor:** Automatically revise your content based on selected focus group feedback.
 -   **User Review and Control:** Review all changes, approve them, or provide your own edits.
 -   **Full History Tracking:** All versions and feedback are saved for each cycle.
 -   **Exportable Results:** Export the entire history of a piece of content as JSON.
+-   **Web UI:** Interactive dashboard for creating content, running focus groups, and managing the refinement cycle.
+-   **Mock Mode:** Test the full workflow without API costs using mock AI responses.
 
 ## Tech Stack
 
@@ -82,6 +85,31 @@ npm start
 
 The server will start on `http://localhost:3000`.
 
+### Using the Web UI
+
+Once the server is running, open your browser and navigate to:
+```
+http://localhost:3000
+```
+
+The web interface provides:
+- Content creation with configurable focus group sizes
+- Automatic focus group execution after content creation
+- Real-time loading states and status updates
+- Interactive feedback review with selective incorporation
+- Visual diff viewer for editor changes
+- Content history export
+
+### Mock Mode (No API Key Required)
+
+To run the application without making real API calls (useful for development and testing):
+
+```bash
+USE_MOCK_AI=true npm run dev
+```
+
+This will use simulated AI responses instead of calling OpenRouter.
+
 ## API Documentation
 
 The API provides several endpoints to manage the content lifecycle. For a detailed step-by-step guide on how to use the API, please see [happy-path.md](happy-path.md).
@@ -102,12 +130,17 @@ The API provides several endpoints to manage the content lifecycle. For a detail
 The application is configured through environment variables.
 
 -   `PORT`: The port the server will run on. (Default: `3000`)
--   `OPENROUTER_API_KEY`: **(Required)** Your API key for OpenRouter.
+-   `USE_MOCK_AI`: Set to `true` to use mock AI responses instead of real API calls. (Default: `false` if `OPENROUTER_API_KEY` is set)
+-   `OPENROUTER_API_KEY`: **(Required for live mode)** Your API key for OpenRouter. Get one at [OpenRouter](https://openrouter.ai/).
 -   `OPENROUTER_BASE_URL`: The base URL for the OpenRouter API. (Default: `https://openrouter.ai/api/v1`)
 -   `OPENROUTER_FOCUS_MODEL`: The AI model to use for focus group participants. (Default: `google/gemini-1.5-flash`)
 -   `OPENROUTER_EDITOR_MODEL`: The AI model to use for the editor. (Default: `anthropic/claude-3.5-sonnet`)
 -   `APP_BASE_URL`: The base URL of your application, used in the `Referer` header. (Default: `http://localhost:3000`)
 -   `APP_NAME`: The name of your application, used in the `X-Title` header. (Default: `Virtuous Content Cycle`)
+
+### Development Configuration
+
+The `nodemon.json` file configures the development server to ignore the `results/` directory, preventing server restarts when content files are saved during the refinement process.
 
 ## Contributing
 

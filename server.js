@@ -9,7 +9,22 @@ const { BadRequestError } = require('./errors.js');
 
 const app = express();
 
-app.use(helmet());
+// Configure Helmet with relaxed CSP for CDN scripts
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "https://cdn.jsdelivr.net"
+      ],
+      connectSrc: ["'self'", "https://cdn.jsdelivr.net"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -93,7 +108,8 @@ async function runFocusGroup(req, res, next) {
     const latestCycle = await fileService.getLatestCycle(id);
     const iterationState = await fileService.getIterationState(id, latestCycle);
 
-    const { feedback: focusGroupRatings, mode: aiMode, lastError: aiError, focusModel } = await aiService.getFocusGroupFeedback(iterationState.currentVersion);
+    const focusGroupConfig = iterationState.metadata.focusGroupConfig || { targetMarketCount: 3, randomCount: 2 };
+    const { feedback: focusGroupRatings, mode: aiMode, lastError: aiError, focusModel } = await aiService.getFocusGroupFeedback(iterationState.currentVersion, focusGroupConfig);
     const aggregatedFeedback = aiService.aggregateFeedback(focusGroupRatings);
 
     const newIterationState = {
@@ -116,6 +132,7 @@ async function runFocusGroup(req, res, next) {
 async function runEditor(req, res, next) {
   try {
     const { id } = req.params;
+    const { selectedParticipantIds } = req.body;
     const latestCycle = await fileService.getLatestCycle(id);
     const iterationState = await fileService.getIterationState(id, latestCycle);
 
@@ -123,11 +140,30 @@ async function runEditor(req, res, next) {
       throw new BadRequestError('Editor can only be run after a focus group has completed.');
     }
 
-    const editorPass = await aiService.getEditorRevision(iterationState.currentVersion, iterationState.aggregatedFeedback);
+    // Filter feedback based on selected participants
+    let feedbackToUse = iterationState.aggregatedFeedback;
+    let selectedFeedback = iterationState.focusGroupRatings;
+
+    if (selectedParticipantIds && selectedParticipantIds.length > 0) {
+      selectedFeedback = iterationState.focusGroupRatings.filter(
+        rating => selectedParticipantIds.includes(rating.participantId)
+      );
+      // Re-aggregate only selected feedback
+      feedbackToUse = aiService.aggregateFeedback(selectedFeedback);
+    }
+
+    const editorPass = await aiService.getEditorRevision(
+      iterationState.currentVersion,
+      feedbackToUse,
+      selectedFeedback
+    );
 
     const newIterationState = {
       ...iterationState,
-      editorPass,
+      editorPass: {
+        ...editorPass,
+        selectedParticipants: selectedParticipantIds || iterationState.focusGroupRatings.map(r => r.participantId),
+      },
       currentVersion: editorPass.revisedContent,
       status: 'editor_complete',
       aiMeta: { ...(iterationState.aiMeta || {}), mode: aiService.getAiMode(), editorModel: aiService.getModels().editorModel },

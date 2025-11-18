@@ -61,6 +61,10 @@ const metadataSchema = z.object({
   costEstimate: z.number().nonnegative().default(0),
   maxCycles: z.number(),
   convergenceThreshold: z.number().min(0).max(1),
+  focusGroupConfig: z.object({
+    targetMarketCount: z.number().min(1).max(10).default(3),
+    randomCount: z.number().min(0).max(10).default(2),
+  }).optional(),
 });
 
 const iterationStateSchema = z.object({
