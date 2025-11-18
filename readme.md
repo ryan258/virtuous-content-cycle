@@ -2,19 +2,42 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-The Virtuous Content Cycle is a powerful API designed to iteratively improve content through a cyclical process of AI-powered focus groups and editorial revisions. This tool allows you to take an initial piece of content, gather simulated user feedback, automatically revise it based on that feedback, and then review the changes, creating a "virtuous cycle" of content improvement.
+The Virtuous Content Cycle (VCC 2.0) is a powerful autonomous content refinement platform that uses AI-powered focus groups, moderator synthesis, and editorial revisions to iteratively improve your content. Build your "Dream Team" of AI personas, provide steering instructions to the editor, and let the autonomous orchestrator manage the entire refinement loop until your target quality is achieved.
 
 ## Features
 
--   **Iterative Content Improvement:** Refine content over multiple cycles.
--   **AI-Powered Focus Groups:** Simulate a focus group to get diverse feedback on your content with configurable participant counts (target market vs. random participants).
--   **Selective Feedback Incorporation:** Choose which focus group feedback to incorporate into the editor revision via checkboxes.
--   **AI-Powered Editor:** Automatically revise your content based on selected focus group feedback.
--   **User Review and Control:** Review all changes, approve them, or provide your own edits.
--   **Full History Tracking:** All versions and feedback are saved for each cycle.
--   **Exportable Results:** Export the entire history of a piece of content as JSON.
--   **Web UI:** Interactive dashboard for creating content, running focus groups, and managing the refinement cycle.
+### Core Refinement Loop
+-   **Iterative Content Improvement:** Refine content over multiple cycles with full history tracking.
+-   **AI-Powered Focus Groups:** Simulate diverse focus group feedback with configurable personas.
+-   **Selective Feedback Incorporation:** Choose which feedback to incorporate via checkboxes.
+-   **AI Moderator (Debate Step):** Synthesizes focus group feedback into actionable insights before editing.
+-   **AI-Powered Editor:** Automatically revises content based on synthesized feedback and custom instructions.
+-   **Editor Steering:** Provide custom instructions to guide the editor's revisions (e.g., "Focus on tone, ignore length").
+-   **User Review and Control:** Review changes, approve them, or provide your own edits.
+
+### Persona Management ("Dream Team Launchpad")
+-   **Custom Personas:** Create, edit, and delete your own AI personas with custom system prompts.
+-   **Persona Types:** Target market (your intended audience) and random (diverse perspectives).
+-   **Dynamic Selection:** Choose which personas participate in each focus group via checkboxes.
+-   **Database-Backed:** All personas stored in SQLite for persistence and reusability.
+
+### Autonomous Orchestrator ("Chief of Staff")
+-   **Automated Refinement:** Run multiple cycles autonomously until target rating or max cycles reached.
+-   **Target-Based:** Set a target rating (e.g., 8.5/10) and let the orchestrator run until achieved.
+-   **Smart Termination:** Stops immediately when target is met to avoid wasteful API calls.
+-   **Real-Time Logs:** See cycle-by-cycle progress as the orchestrator works.
+
+### Metrics & Transparency
+-   **Convergence Score:** Measures agreement among focus group participants (0-1 scale).
+-   **Cost Tracking:** Track token usage and costs across all cycles (requires manual rate configuration).
+-   **Full History:** All versions, feedback, moderator summaries, and metrics saved per cycle.
+-   **Exportable Results:** Export entire content history as JSON.
+
+### Developer Experience
+-   **Web UI:** Three-tab interface (Content, Personas, Orchestrator) for complete workflow management.
 -   **Mock Mode:** Test the full workflow without API costs using mock AI responses.
+-   **Database-Backed:** SQLite persistence with automatic migrations.
+-   **Type-Safe:** Zod schemas for API validation.
 
 ## Tech Stack
 
@@ -31,16 +54,17 @@ This project follows a simple, flat structure to keep it easy to understand and 
 
 ```
 /
-├───public/             # Static files for web UI
-├───tests/              # Jest test files
-├───aiService.js        # Handles all interactions with AI models
-├───databaseService.js  # SQLite database layer (replaces fileService)
-├───migrate.js          # Database initialization and seeding
-├───models.js           # Zod schemas for data validation
-├───errors.js           # Custom error classes
-├───server.js           # The main Express server and all route logic
-├───focusGroupPersonas.json # Persona configuration (seeded into database)
-├───vcc.db              # SQLite database (gitignored, created via migrate.js)
+├───public/                    # Static files for web UI (3 tabs: Content, Personas, Orchestrator)
+├───tests/                     # Jest test files
+├───aiService.js               # AI model interactions (focus groups, editor, moderator)
+├───databaseService.js         # SQLite database layer with migrations
+├───orchestratorService.js     # Autonomous multi-cycle refinement loop
+├───migrate.js                 # Database initialization and persona seeding
+├───models.js                  # Zod schemas for API validation
+├───errors.js                  # Custom error classes
+├───server.js                  # Express server and all route logic
+├───focusGroupPersonas.json    # Default personas (seeded into database on first run)
+├───vcc.db                     # SQLite database (gitignored, auto-created)
 ├───package.json
 └───README.md
 ```
@@ -112,13 +136,32 @@ Once the server is running, open your browser and navigate to:
 http://localhost:3000
 ```
 
-The web interface provides:
-- Content creation with configurable focus group sizes
-- Automatic focus group execution after content creation
-- Real-time loading states and status updates
+The web interface provides three tabs:
+
+**Content Tab:**
+- Create new content with persona selection (checkbox list)
+- Automatic focus group execution after creation
+- View convergence score and running cost
+- Add custom editor instructions
+- Review moderator's synthesized summary
 - Interactive feedback review with selective incorporation
 - Visual diff viewer for editor changes
 - Content history export
+
+**Personas Tab:**
+- Create, edit, and delete custom AI personas
+- Set persona type (target market or random)
+- Configure custom system prompts
+- View all personas in a card layout
+- Cannot delete personas in use by content items
+
+**Orchestrator Tab:**
+- Run autonomous multi-cycle refinement
+- Set target rating (1-10) and max cycles (1-10)
+- Select personas for orchestration
+- Provide editor instructions
+- View real-time cycle-by-cycle logs
+- Automatically stops when target achieved or max cycles reached
 
 ### Mock Mode (No API Key Required)
 
@@ -134,15 +177,29 @@ This will use simulated AI responses instead of calling OpenRouter.
 
 The API provides several endpoints to manage the content lifecycle. For a detailed step-by-step guide on how to use the API, please see [happy-path.md](happy-path.md).
 
-### Endpoints
+### Content Endpoints
 
--   `POST /api/content/create`: Create a new piece of content.
+-   `POST /api/content/create`: Create a new piece of content with optional `personaIds` array.
 -   `GET /api/content/:id`: Get the latest state of a piece of content.
--   `POST /api/content/:id/run-focus-group`: Run a focus group on the content.
--   `POST /api/content/:id/run-editor`: Run an AI editor on the content.
+-   `POST /api/content/:id/run-focus-group`: Run a focus group on the content (with optional `personaIds` override).
+-   `POST /api/content/:id/run-editor`: Run the AI editor with optional `editorInstructions` and `selectedParticipantIds`.
 -   `POST /api/content/:id/user-review`: Approve, reject, or edit the editor's changes.
 -   `GET /api/content/:id/history`: Get the full history of a piece of content across all cycles.
--   `POST /api/content/:id/export`: Export the content history.
+-   `POST /api/content/:id/export`: Export the content history as JSON.
+
+### Persona Endpoints
+
+-   `GET /api/personas`: List all personas.
+-   `POST /api/personas`: Create a new persona (requires `name`, `type`, `persona`, `systemPrompt`).
+-   `PUT /api/personas/:id`: Update an existing persona.
+-   `DELETE /api/personas/:id`: Delete a persona (fails if in use by content).
+
+### Orchestrator Endpoint
+
+-   `POST /api/orchestrate/run`: Run autonomous refinement (requires `contentId`, `targetRating`, `maxCycles`, optional `personaIds` and `editorInstructions`).
+
+### Utility
+
 -   `GET /health`: Health check endpoint.
 
 ## Configuration
