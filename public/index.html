@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iterative Content Refinement System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Iterative Content Refinement System</h1>
+        <div class="main-content">
+            <div class="left-column">
+                <div class="create-content">
+                    <h2>Create New Content</h2>
+                    <div id="status-message" class="status-message"></div>
+                    <textarea id="original-input" placeholder="Enter your content here..."></textarea>
+                    <input type="text" id="content-type" placeholder="Content Type (e.g., product_description)">
+                    <input type="text" id="target-audience" placeholder="Target Audience (e.g., ecommerce_shoppers)">
+                    <button id="create-btn">Create</button>
+                </div>
+                <div class="actions">
+                    <h2>Actions</h2>
+                    <div id="action-status" class="status-message"></div>
+                    <div id="focus-group-summary" class="feedback-summary" style="display: none;"></div>
+                    <button id="run-focus-group-btn" disabled>Run Focus Group</button>
+                    <button id="run-editor-btn" disabled>Run Editor</button>
+                    <div id="user-review-section" style="display: none;">
+                        <h3>User Review</h3>
+                        <div id="diff-viewer"></div>
+                        <textarea id="user-edits" placeholder="Optional: Make manual edits here..."></textarea>
+                        <input type="text" id="user-notes" placeholder="Notes...">
+                        <button id="approve-btn">Approve & Continue</button>
+                        <button id="approve-stop-btn">Approve & Stop</button>
+                        <button id="discard-btn">Discard & Use Original</button>
+                    </div>
+                </div>
+            </div>
+            <div class="right-column">
+                <div id="detailed-feedback" class="detailed-feedback-panel" style="display: none;">
+                    <h2>Focus Group Feedback</h2>
+                    <div id="detailed-feedback-content"></div>
+                </div>
+                <div class="results-dashboard">
+                <h2>Results Dashboard</h2>
+                <div id="content-id-display"></div>
+                <div id="ai-mode-display" class="muted"></div>
+                <div class="tabs">
+                    <button class="tab-link active" onclick="openTab(event, 'progress')">Progress</button>
+                    <button class="tab-link" onclick="openTab(event, 'feedback')">Feedback Timeline</button>
+                    <button class="tab-link" onclick="openTab(event, 'evolution')">Content Evolution</button>
+                    <button class="tab-link" onclick="openTab(event, 'details')">Details</button>
+                </div>
+                <div id="progress" class="tab-content" style="display: block;">
+                    <h3>Progress</h3>
+                    <canvas id="rating-chart"></canvas>
+                    <div id="cost-tracker"></div>
+                </div>
+                <div id="feedback" class="tab-content">
+                    <h3>Feedback Timeline</h3>
+                    <div id="feedback-timeline"></div>
+                </div>
+                <div id="evolution" class="tab-content">
+                    <h3>Content Evolution</h3>
+                    <div id="content-evolution"></div>
+                </div>
+                <div id="details" class="tab-content">
+                    <h3>Details</h3>
+                    <div id="details-content"></div>
+                    <button id="export-json-btn">Export as JSON</button>
+                    <button id="export-csv-btn">Export as CSV</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
