@@ -19,6 +19,7 @@ const originalInputEl = document.getElementById('original-input');
 const contentTypeEl = document.getElementById('content-type');
 const targetAudienceEl = document.getElementById('target-audience');
 const personaChecklist = document.getElementById('persona-checklist');
+const orchestratorPersonaChecklist = document.getElementById('orchestrator-persona-checklist');
 const selectedPersonaCountEl = document.getElementById('selected-persona-count');
 const refreshPersonasBtn = document.getElementById('refresh-personas-btn');
 const contentIdDisplay = document.getElementById('content-id-display');
@@ -39,9 +40,18 @@ const selectAllFeedbackBtn = document.getElementById('select-all-feedback');
 const deselectAllFeedbackBtn = document.getElementById('deselect-all-feedback');
 const contentTabBtn = document.getElementById('content-tab-btn');
 const personasTabBtn = document.getElementById('personas-tab-btn');
+const orchestratorTabBtn = document.getElementById('orchestrator-tab-btn');
 const contentTab = document.getElementById('content-tab');
 const personasTab = document.getElementById('personas-tab');
+const orchestratorTab = document.getElementById('orchestrator-tab');
 const editorInstructionsEl = document.getElementById('editor-instructions');
+const orchestratorContentIdEl = document.getElementById('orchestrator-content-id');
+const orchestratorTargetRatingEl = document.getElementById('orchestrator-target-rating');
+const orchestratorMaxCyclesEl = document.getElementById('orchestrator-max-cycles');
+const orchestratorInstructionsEl = document.getElementById('orchestrator-instructions');
+const orchestratorStatus = document.getElementById('orchestrator-status');
+const orchestratorLog = document.getElementById('orchestrator-log');
+const runOrchestratorBtn = document.getElementById('run-orchestrator-btn');
 
 // Persona launchpad elements
 const personaFormStatus = document.getElementById('persona-form-status');
@@ -91,17 +101,21 @@ function setButtonLoading(button, loading) {
 }
 
 function setActiveTab(tab) {
-    if (tab === 'personas') {
-        personasTab.style.display = 'block';
-        contentTab.style.display = 'none';
-        personasTabBtn.classList.add('active');
-        contentTabBtn.classList.remove('active');
-    } else {
-        personasTab.style.display = 'none';
-        contentTab.style.display = 'block';
-        contentTabBtn.classList.add('active');
-        personasTabBtn.classList.remove('active');
-    }
+    const tabs = [
+        { name: 'content', panel: contentTab, btn: contentTabBtn },
+        { name: 'personas', panel: personasTab, btn: personasTabBtn },
+        { name: 'orchestrator', panel: orchestratorTab, btn: orchestratorTabBtn }
+    ];
+
+    tabs.forEach(t => {
+        if (tab === t.name) {
+            t.panel.style.display = 'block';
+            t.btn.classList.add('active');
+        } else {
+            t.panel.style.display = 'none';
+            t.btn.classList.remove('active');
+        }
+    });
 }
 
 function updateCycleInfo(data) {
@@ -206,14 +220,16 @@ function displayDetailedFeedback(data) {
     detailedFeedbackPanel.style.display = 'block';
 }
 
-function renderPersonaChecklist() {
+function renderPersonaChecklist(targetEl) {
     if (!availablePersonas || availablePersonas.length === 0) {
-        personaChecklist.innerHTML = '<p class="muted">No personas yet. Add some in the Personas tab.</p>';
-        selectedPersonaCountEl.textContent = '0 selected';
+        targetEl.innerHTML = '<p class="muted">No personas yet. Add some in the Personas tab.</p>';
+        if (targetEl === personaChecklist) {
+            selectedPersonaCountEl.textContent = '0 selected';
+        }
         return;
     }
 
-    personaChecklist.innerHTML = availablePersonas.map(p => {
+    targetEl.innerHTML = availablePersonas.map(p => {
         return `
             <label class="persona-option">
                 <input type="checkbox" class="persona-checkbox" data-persona-id="${escapeHtml(p.id)}" checked>
@@ -223,20 +239,22 @@ function renderPersonaChecklist() {
         `;
     }).join('');
 
-    personaChecklist.querySelectorAll('.persona-checkbox').forEach(cb => {
-        cb.addEventListener('change', updateSelectedPersonaCount);
+    targetEl.querySelectorAll('.persona-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (targetEl === personaChecklist) updateSelectedPersonaCount();
+        });
     });
 
-    updateSelectedPersonaCount();
+    if (targetEl === personaChecklist) updateSelectedPersonaCount();
 }
 
 function updateSelectedPersonaCount() {
-    const selected = getSelectedPersonaIds().length;
+    const selected = getSelectedPersonaIdsFrom(personaChecklist).length;
     selectedPersonaCountEl.textContent = `${selected} selected`;
 }
 
-function getSelectedPersonaIds() {
-    const checkboxes = personaChecklist.querySelectorAll('.persona-checkbox:checked');
+function getSelectedPersonaIdsFrom(container) {
+    const checkboxes = container.querySelectorAll('.persona-checkbox:checked');
     return Array.from(checkboxes).map(cb => cb.dataset.personaId).filter(Boolean);
 }
 
@@ -246,7 +264,8 @@ async function loadPersonas() {
         const response = await fetch('/api/personas');
         if (!response.ok) throw new Error('Failed to load personas');
         availablePersonas = await response.json();
-        renderPersonaChecklist();
+        renderPersonaChecklist(personaChecklist);
+        renderPersonaChecklist(orchestratorPersonaChecklist);
         renderPersonaList();
         hideStatus(personaListStatus);
     } catch (error) {
@@ -386,6 +405,7 @@ deselectAllFeedbackBtn.addEventListener('click', () => {
 
 contentTabBtn.addEventListener('click', () => setActiveTab('content'));
 personasTabBtn.addEventListener('click', () => setActiveTab('personas'));
+orchestratorTabBtn.addEventListener('click', () => setActiveTab('orchestrator'));
 refreshPersonasBtn.addEventListener('click', loadPersonas);
 savePersonaBtn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -396,11 +416,60 @@ resetPersonaBtn.addEventListener('click', (e) => {
     resetPersonaForm();
 });
 
+runOrchestratorBtn.addEventListener('click', async () => {
+    const contentId = orchestratorContentIdEl.value.trim();
+    const targetRating = parseFloat(orchestratorTargetRatingEl.value);
+    const maxCycles = parseInt(orchestratorMaxCyclesEl.value, 10);
+    const personaIds = getSelectedPersonaIdsFrom(orchestratorPersonaChecklist);
+    const editorInstructions = orchestratorInstructionsEl.value;
+
+    if (!contentId || !targetRating || !maxCycles) {
+        showStatus(orchestratorStatus, 'Content ID, target rating, and max cycles are required.', 'error');
+        return;
+    }
+    if (targetRating <= 0 || targetRating > 10) {
+        showStatus(orchestratorStatus, 'Target rating must be between 1 and 10.', 'error');
+        return;
+    }
+    if (maxCycles <= 0 || maxCycles > 10) {
+        showStatus(orchestratorStatus, 'Max cycles must be between 1 and 10.', 'error');
+        return;
+    }
+
+    showStatus(orchestratorStatus, 'Running orchestrator...');
+    setButtonLoading(runOrchestratorBtn, true);
+    orchestratorLog.textContent = '';
+
+    try {
+        const response = await fetch('/api/orchestrate/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contentId, targetRating, maxCycles, personaIds, editorInstructions })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to run orchestrator');
+        }
+        const logs = data.logs || [];
+        orchestratorLog.textContent = logs.join('\n');
+        showStatus(orchestratorStatus, data.achieved ? 'Target achieved.' : 'Orchestration finished without meeting target.', 'success');
+        if (data.finalState) {
+            currentContentId = data.finalState.id;
+            updateUI(data.finalState);
+        }
+    } catch (error) {
+        console.error('Error running orchestrator:', error);
+        showStatus(orchestratorStatus, `Error: ${error.message}`, 'error');
+    } finally {
+        setButtonLoading(runOrchestratorBtn, false);
+    }
+});
+
 createBtn.addEventListener('click', async () => {
     const originalInput = originalInputEl.value;
     const contentType = contentTypeEl.value;
     const targetAudience = targetAudienceEl.value;
-    const selectedPersonaIds = getSelectedPersonaIds();
+    const selectedPersonaIds = getSelectedPersonaIdsFrom(personaChecklist);
 
     if (!originalInput || !contentType || !targetAudience) {
         showStatus(statusMessage, 'Please fill in all fields to create content.', 'error');
@@ -464,7 +533,7 @@ createBtn.addEventListener('click', async () => {
 });
 
 async function runFocusGroupAutomatically() {
-    const selectedPersonaIds = getSelectedPersonaIds();
+    const selectedPersonaIds = getSelectedPersonaIdsFrom(personaChecklist);
     if (selectedPersonaIds.length === 0) {
         showStatus(actionStatus, 'Select at least one persona before running the focus group.', 'error');
         setTimeout(() => hideStatus(actionStatus), 3000);

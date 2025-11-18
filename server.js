@@ -7,6 +7,7 @@ const databaseService = require('./databaseService.js');
 const aiService = require('./aiService.js');
 const { BadRequestError, NotFoundError } = require('./errors.js');
 const focusGroupPersonas = require('./focusGroupPersonas.json');
+const orchestratorService = require('./orchestratorService');
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.get('/api/content/:id/history', getContentHistory);
 // Support both GET and POST for export (backward compatibility)
 app.get('/api/content/:id/export', exportContent);
 app.post('/api/content/:id/export', exportContent);
+app.post('/api/orchestrate/run', runOrchestrator);
 
 // Personas CRUD
 app.get('/api/personas', listPersonas);
@@ -617,12 +619,43 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Something went wrong!';
-  res.status(statusCode).json({
-    status: 'error',
-    statusCode,
-    message
+    res.status(statusCode).json({
+      status: 'error',
+      statusCode,
+      message
+    });
   });
-});
+
+async function runOrchestrator(req, res, next) {
+  try {
+    const { contentId, targetRating, maxCycles, personaIds = [], editorInstructions = '' } = req.body;
+    if (editorInstructions && editorInstructions.length > 1000) {
+      throw new BadRequestError('editorInstructions cannot exceed 1000 characters');
+    }
+    if (targetRating > 10 || targetRating <= 0) {
+      throw new BadRequestError('targetRating must be between 0 and 10');
+    }
+    if (maxCycles <= 0 || maxCycles > 10) {
+      throw new BadRequestError('maxCycles must be between 1 and 10');
+    }
+    if (Array.isArray(personaIds) && personaIds.length > 0) {
+      const personas = databaseService.getPersonasByIds(personaIds);
+      if (personas.length !== personaIds.length) {
+        throw new BadRequestError('One or more personaIds are invalid');
+      }
+    }
+    const result = await orchestratorService.runOrchestration({
+      contentId,
+      targetRating: Number(targetRating),
+      maxCycles: Number(maxCycles),
+      personaIds,
+      editorInstructions
+    });
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+}
 
 
 const PORT = process.env.PORT || 3000;

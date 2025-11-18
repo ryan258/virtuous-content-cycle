@@ -12,6 +12,7 @@
         <div class="tab-nav">
             <button id="content-tab-btn" class="tab-btn active">Content</button>
             <button id="personas-tab-btn" class="tab-btn">Personas</button>
+            <button id="orchestrator-tab-btn" class="tab-btn">Orchestrator</button>
         </div>
         <div id="content-tab" class="tab-panel">
             <div class="main-content">
@@ -101,6 +102,31 @@
                     <h3>Existing Personas</h3>
                     <div id="persona-list-status" class="status-message"></div>
                     <div id="persona-list"></div>
+                </div>
+            </div>
+        </div>
+        <div id="orchestrator-tab" class="tab-panel" style="display: none;">
+            <div class="persona-launchpad">
+                <div class="persona-form">
+                    <h2>Orchestrator</h2>
+                    <div id="orchestrator-status" class="status-message"></div>
+                    <input type="text" id="orchestrator-content-id" placeholder="Content ID to orchestrate">
+                    <input type="number" id="orchestrator-target-rating" placeholder="Target Rating (e.g., 8.5)" step="0.1" min="1" max="10">
+                    <input type="number" id="orchestrator-max-cycles" placeholder="Max Cycles" min="1" value="3">
+                    <textarea id="orchestrator-instructions" placeholder="Optional editor instructions for orchestration"></textarea>
+                    <div>
+                        <h3>Personas</h3>
+                        <div id="orchestrator-persona-checklist" class="persona-checklist">
+                            <p class="muted">Loading personas...</p>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button id="run-orchestrator-btn">Run Orchestration</button>
+                    </div>
+                </div>
+                <div class="persona-list">
+                    <h3>Orchestrator Log</h3>
+                    <div id="orchestrator-log" class="status-message" style="display: block; background: #fff; color: #333; border: 1px solid #ddd;"></div>
                 </div>
             </div>
         </div>

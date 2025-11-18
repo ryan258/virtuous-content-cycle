@@ -82,6 +82,7 @@ const initializeSchema = () => {
       moderatorKeyPoints TEXT,
       moderatorModelUsed TEXT,
       moderatorTimestamp TEXT,
+      moderatorPatterns TEXT,
 
       -- User review fields
       userApproved INTEGER,
@@ -179,6 +180,11 @@ const initializeSchema = () => {
   }
   try {
     db.exec(`ALTER TABLE Cycles ADD COLUMN moderatorTimestamp TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    db.exec(`ALTER TABLE Cycles ADD COLUMN moderatorPatterns TEXT`);
   } catch (e) {
     // Column already exists, ignore
   }
@@ -342,6 +348,7 @@ const updateCycleWithEditorPass = (cycleId, editorPass) => {
       moderatorKeyPoints = ?,
       moderatorModelUsed = ?,
       moderatorTimestamp = ?,
+      moderatorPatterns = ?,
       updatedAt = ?
     WHERE id = ?
   `);
@@ -356,6 +363,7 @@ const updateCycleWithEditorPass = (cycleId, editorPass) => {
     editorPass.moderator?.keyPoints ? JSON.stringify(editorPass.moderator.keyPoints) : null,
     editorPass.moderator?.modelUsed || null,
     editorPass.moderator?.timestamp || null,
+    editorPass.moderator?.patterns || null,
     now,
     cycleId
   );
@@ -576,7 +584,8 @@ const getIterationState = (contentId, cycleNumber) => {
         summary: cycle.moderatorSummary,
         keyPoints: JSON.parse(cycle.moderatorKeyPoints || '[]'),
         modelUsed: cycle.moderatorModelUsed,
-        timestamp: cycle.moderatorTimestamp
+        timestamp: cycle.moderatorTimestamp,
+        patterns: cycle.moderatorPatterns || null
       } : undefined
     } : undefined,
     userEdit: cycle.userApproved !== null ? {
