@@ -3,6 +3,8 @@ const API_URL = '/api/content';
 let currentContentId = null;
 let currentCycle = null;
 let ratingChart = null;
+let availablePersonas = [];
+let editingPersonaId = null;
 
 const createBtn = document.getElementById('create-btn');
 const runFocusGroupBtn = document.getElementById('run-focus-group-btn');
@@ -16,9 +18,9 @@ const exportCsvBtn = document.getElementById('export-csv-btn');
 const originalInputEl = document.getElementById('original-input');
 const contentTypeEl = document.getElementById('content-type');
 const targetAudienceEl = document.getElementById('target-audience');
-const targetMarketCountEl = document.getElementById('target-market-count');
-const randomCountEl = document.getElementById('random-count');
-const totalParticipantsEl = document.getElementById('total-participants');
+const personaChecklist = document.getElementById('persona-checklist');
+const selectedPersonaCountEl = document.getElementById('selected-persona-count');
+const refreshPersonasBtn = document.getElementById('refresh-personas-btn');
 const contentIdDisplay = document.getElementById('content-id-display');
 const aiModeDisplay = document.getElementById('ai-mode-display');
 const userReviewSection = document.getElementById('user-review-section');
@@ -34,6 +36,22 @@ const cycleInfo = document.getElementById('cycle-info');
 const contentPreview = document.getElementById('content-preview');
 const selectAllFeedbackBtn = document.getElementById('select-all-feedback');
 const deselectAllFeedbackBtn = document.getElementById('deselect-all-feedback');
+const contentTabBtn = document.getElementById('content-tab-btn');
+const personasTabBtn = document.getElementById('personas-tab-btn');
+const contentTab = document.getElementById('content-tab');
+const personasTab = document.getElementById('personas-tab');
+
+// Persona launchpad elements
+const personaFormStatus = document.getElementById('persona-form-status');
+const personaListStatus = document.getElementById('persona-list-status');
+const personaList = document.getElementById('persona-list');
+const personaIdEl = document.getElementById('persona-id');
+const personaNameEl = document.getElementById('persona-name');
+const personaTypeEl = document.getElementById('persona-type');
+const personaShortEl = document.getElementById('persona-short');
+const personaSystemEl = document.getElementById('persona-system');
+const savePersonaBtn = document.getElementById('save-persona-btn');
+const resetPersonaBtn = document.getElementById('reset-persona-btn');
 
 // Helper function to safely escape HTML
 function escapeHtml(text) {
@@ -67,6 +85,20 @@ function setButtonLoading(button, loading) {
         button.disabled = true;
     } else {
         button.classList.remove('loading');
+    }
+}
+
+function setActiveTab(tab) {
+    if (tab === 'personas') {
+        personasTab.style.display = 'block';
+        contentTab.style.display = 'none';
+        personasTabBtn.classList.add('active');
+        contentTabBtn.classList.remove('active');
+    } else {
+        personasTab.style.display = 'none';
+        contentTab.style.display = 'block';
+        contentTabBtn.classList.add('active');
+        personasTabBtn.classList.remove('active');
     }
 }
 
@@ -168,6 +200,175 @@ function displayDetailedFeedback(data) {
     detailedFeedbackPanel.style.display = 'block';
 }
 
+function renderPersonaChecklist() {
+    if (!availablePersonas || availablePersonas.length === 0) {
+        personaChecklist.innerHTML = '<p class="muted">No personas yet. Add some in the Personas tab.</p>';
+        selectedPersonaCountEl.textContent = '0 selected';
+        return;
+    }
+
+    personaChecklist.innerHTML = availablePersonas.map(p => {
+        return `
+            <label class="persona-option">
+                <input type="checkbox" class="persona-checkbox" data-persona-id="${escapeHtml(p.id)}" checked>
+                <span class="persona-name">${escapeHtml(p.name || p.persona || p.id)}</span>
+                <span class="persona-type muted">${p.type === 'target_market' ? '🎯 Target' : '🌐 Random'}</span>
+            </label>
+        `;
+    }).join('');
+
+    personaChecklist.querySelectorAll('.persona-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateSelectedPersonaCount);
+    });
+
+    updateSelectedPersonaCount();
+}
+
+function updateSelectedPersonaCount() {
+    const selected = getSelectedPersonaIds().length;
+    selectedPersonaCountEl.textContent = `${selected} selected`;
+}
+
+function getSelectedPersonaIds() {
+    const checkboxes = personaChecklist.querySelectorAll('.persona-checkbox:checked');
+    return Array.from(checkboxes).map(cb => cb.dataset.personaId).filter(Boolean);
+}
+
+async function loadPersonas() {
+    showStatus(personaListStatus, 'Loading personas...');
+    try {
+        const response = await fetch('/api/personas');
+        if (!response.ok) throw new Error('Failed to load personas');
+        availablePersonas = await response.json();
+        renderPersonaChecklist();
+        renderPersonaList();
+        hideStatus(personaListStatus);
+    } catch (error) {
+        console.error('Error loading personas:', error);
+        showStatus(personaListStatus, `Error: ${error.message}`, 'error');
+    }
+}
+
+function renderPersonaList() {
+    if (!availablePersonas || availablePersonas.length === 0) {
+        personaList.innerHTML = '<p class="muted">No personas found.</p>';
+        return;
+    }
+
+    personaList.innerHTML = availablePersonas.map(p => {
+        return `
+            <div class="persona-card" data-id="${escapeHtml(p.id)}">
+                <div class="card-header">
+                    <h4>${escapeHtml(p.name || p.persona)}</h4>
+                    <span class="persona-type muted">${p.type === 'target_market' ? '🎯 Target' : '🌐 Random'}</span>
+                </div>
+                <p class="muted">${escapeHtml(p.persona)}</p>
+                <div class="card-actions">
+                    <button class="small-btn edit-persona" data-id="${escapeHtml(p.id)}">Edit</button>
+                    <button class="small-btn danger delete-persona" data-id="${escapeHtml(p.id)}">Delete</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    personaList.querySelectorAll('.edit-persona').forEach(btn => {
+        btn.addEventListener('click', () => startEditPersona(btn.dataset.id));
+    });
+    personaList.querySelectorAll('.delete-persona').forEach(btn => {
+        btn.addEventListener('click', () => handleDeletePersona(btn.dataset.id));
+    });
+}
+
+function resetPersonaForm() {
+    editingPersonaId = null;
+    personaIdEl.value = '';
+    personaNameEl.value = '';
+    personaTypeEl.value = '';
+    personaShortEl.value = '';
+    personaSystemEl.value = '';
+    hideStatus(personaFormStatus);
+}
+
+function startEditPersona(id) {
+    const persona = availablePersonas.find(p => p.id === id);
+    if (!persona) return;
+    editingPersonaId = id;
+    personaIdEl.value = persona.id;
+    personaNameEl.value = persona.name || persona.persona || persona.id;
+    personaTypeEl.value = persona.type;
+    personaShortEl.value = persona.persona || '';
+    personaSystemEl.value = persona.systemPrompt || '';
+    showStatus(personaFormStatus, `Editing ${personaNameEl.value}`, 'success');
+}
+
+async function savePersona() {
+    const name = personaNameEl.value.trim();
+    const type = personaTypeEl.value;
+    const personaShort = personaShortEl.value.trim();
+    const systemPrompt = personaSystemEl.value.trim();
+
+    if (!name || !type || !personaShort || !systemPrompt) {
+        showStatus(personaFormStatus, 'All fields are required.', 'error');
+        return;
+    }
+
+    const payload = {
+        id: personaIdEl.value || undefined,
+        name,
+        type,
+        persona: personaShort,
+        systemPrompt,
+    };
+
+    const method = editingPersonaId ? 'PUT' : 'POST';
+    const url = editingPersonaId ? `/api/personas/${encodeURIComponent(editingPersonaId)}` : '/api/personas';
+
+    setButtonLoading(savePersonaBtn, true);
+    showStatus(personaFormStatus, editingPersonaId ? 'Updating persona...' : 'Creating persona...');
+
+    try {
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to save persona');
+        }
+        showStatus(personaFormStatus, 'Saved!', 'success');
+        resetPersonaForm();
+        await loadPersonas();
+    } catch (error) {
+        console.error('Error saving persona:', error);
+        showStatus(personaFormStatus, `Error: ${error.message}`, 'error');
+    } finally {
+        setButtonLoading(savePersonaBtn, false);
+    }
+}
+
+async function handleDeletePersona(id) {
+    if (!id) return;
+    if (!confirm('Are you sure you want to delete this persona?')) return;
+    setButtonLoading(savePersonaBtn, true);
+    showStatus(personaFormStatus, 'Deleting persona...');
+    try {
+        const response = await fetch(`/api/personas/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to delete persona');
+        }
+        if (editingPersonaId === id) resetPersonaForm();
+        await loadPersonas();
+        showStatus(personaFormStatus, 'Deleted.', 'success');
+    } catch (error) {
+        console.error('Error deleting persona:', error);
+        showStatus(personaFormStatus, `Error: ${error.message}`, 'error');
+    } finally {
+        setButtonLoading(savePersonaBtn, false);
+    }
+}
+
 // Select/Deselect all feedback checkboxes
 selectAllFeedbackBtn.addEventListener('click', () => {
     document.querySelectorAll('.feedback-checkbox').forEach(cb => cb.checked = true);
@@ -177,22 +378,23 @@ deselectAllFeedbackBtn.addEventListener('click', () => {
     document.querySelectorAll('.feedback-checkbox').forEach(cb => cb.checked = false);
 });
 
-// Update total participant count when inputs change
-targetMarketCountEl.addEventListener('input', updateParticipantTotal);
-randomCountEl.addEventListener('input', updateParticipantTotal);
-
-function updateParticipantTotal() {
-    const targetMarket = parseInt(targetMarketCountEl.value) || 0;
-    const random = parseInt(randomCountEl.value) || 0;
-    totalParticipantsEl.textContent = targetMarket + random;
-}
+contentTabBtn.addEventListener('click', () => setActiveTab('content'));
+personasTabBtn.addEventListener('click', () => setActiveTab('personas'));
+refreshPersonasBtn.addEventListener('click', loadPersonas);
+savePersonaBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    savePersona();
+});
+resetPersonaBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    resetPersonaForm();
+});
 
 createBtn.addEventListener('click', async () => {
     const originalInput = originalInputEl.value;
     const contentType = contentTypeEl.value;
     const targetAudience = targetAudienceEl.value;
-    const targetMarketCount = parseInt(targetMarketCountEl.value) || 3;
-    const randomCount = parseInt(randomCountEl.value) || 2;
+    const selectedPersonaIds = getSelectedPersonaIds();
 
     if (!originalInput || !contentType || !targetAudience) {
         showStatus(statusMessage, 'Please fill in all fields to create content.', 'error');
@@ -200,8 +402,8 @@ createBtn.addEventListener('click', async () => {
         return;
     }
 
-    if (targetMarketCount + randomCount === 0) {
-        showStatus(statusMessage, 'Focus group must have at least 1 participant.', 'error');
+    if (selectedPersonaIds.length === 0) {
+        showStatus(statusMessage, 'Select at least one persona.', 'error');
         setTimeout(() => hideStatus(statusMessage), 3000);
         return;
     }
@@ -221,9 +423,10 @@ createBtn.addEventListener('click', async () => {
                     maxCycles: 5,
                     convergenceThreshold: 0.8,
                     focusGroupConfig: {
-                        targetMarketCount,
-                        randomCount,
-                    }
+                        targetMarketCount: selectedPersonaIds.length,
+                        randomCount: 0,
+                    },
+                    personaIds: selectedPersonaIds
                 }
             }),
         });
@@ -255,11 +458,22 @@ createBtn.addEventListener('click', async () => {
 });
 
 async function runFocusGroupAutomatically() {
+    const selectedPersonaIds = getSelectedPersonaIds();
+    if (selectedPersonaIds.length === 0) {
+        showStatus(actionStatus, 'Select at least one persona before running the focus group.', 'error');
+        setTimeout(() => hideStatus(actionStatus), 3000);
+        return;
+    }
+
     setButtonLoading(runFocusGroupBtn, true);
     showStatus(actionStatus, 'Running focus group (this may take 30-60 seconds)...');
 
     try {
-        const response = await fetch(`${API_URL}/${currentContentId}/run-focus-group`, { method: 'POST' });
+        const response = await fetch(`${API_URL}/${currentContentId}/run-focus-group`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ personaIds: selectedPersonaIds })
+        });
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.message || 'Failed to run focus group');
@@ -449,5 +663,11 @@ function updateUI(data) {
         }
     }
 }
+
+// Initialize
+window.addEventListener('DOMContentLoaded', async () => {
+    setActiveTab('content');
+    await loadPersonas();
+});
 
 // Removed old dashboard rendering functions - no longer needed

@@ -25,6 +25,7 @@ const initializeSchema = () => {
       costEstimate REAL DEFAULT 0,
       targetMarketCount INTEGER DEFAULT 3,
       randomCount INTEGER DEFAULT 2,
+      personaIds TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     )
@@ -43,6 +44,11 @@ const initializeSchema = () => {
   }
   try {
     db.exec(`ALTER TABLE ContentItems ADD COLUMN randomCount INTEGER DEFAULT 2`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    db.exec(`ALTER TABLE ContentItems ADD COLUMN personaIds TEXT`);
   } catch (e) {
     // Column already exists, ignore
   }
@@ -165,9 +171,9 @@ const createContentItem = (data) => {
   const stmt = db.prepare(`
     INSERT INTO ContentItems (
       id, originalInput, contentType, targetAudience,
-      maxCycles, convergenceThreshold, costEstimate, targetMarketCount, randomCount,
+      maxCycles, convergenceThreshold, costEstimate, targetMarketCount, randomCount, personaIds,
       createdAt, updatedAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   stmt.run(
@@ -180,6 +186,7 @@ const createContentItem = (data) => {
     data.costEstimate ?? 0,
     data.targetMarketCount ?? 3,
     data.randomCount ?? 2,
+    data.personaIds ? JSON.stringify(data.personaIds) : null,
     now,
     now
   );
@@ -402,6 +409,8 @@ const getPersonasByType = (type) => {
 };
 
 const getPersonasByIds = (ids) => {
+  if (!ids || ids.length === 0) return [];
+  // SECURITY: Placeholders keep inputs parameterized; do not change to string interpolation
   const placeholders = ids.map(() => '?').join(',');
   const stmt = db.prepare(`SELECT * FROM Personas WHERE id IN (${placeholders})`);
   return stmt.all(...ids);
@@ -546,7 +555,8 @@ const getIterationState = (contentId, cycleNumber) => {
       costEstimate: contentItem.costEstimate ?? 0,
       focusGroupConfig: {
         targetMarketCount: contentItem.targetMarketCount ?? 3,
-        randomCount: contentItem.randomCount ?? 2
+        randomCount: contentItem.randomCount ?? 2,
+        personaIds: contentItem.personaIds ? JSON.parse(contentItem.personaIds) : undefined
       }
     },
     aiMeta: {
@@ -570,7 +580,7 @@ const seedPersonas = (personas) => {
   const now = new Date().toISOString();
   const insertMany = db.transaction((personas) => {
     for (const p of personas) {
-      insertStmt.run(p.id, p.id, p.type, p.persona, p.systemPrompt, now, now);
+      insertStmt.run(p.id, p.persona || p.id, p.type, p.persona, p.systemPrompt, now, now);
     }
   });
 

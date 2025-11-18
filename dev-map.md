@@ -39,23 +39,23 @@ Goal: Evolve the VCC from a single-run tool into a personalized, autonomous cont
 
 **Key Tasks:**
 
-1. **\[DB\] Personas Table:**  
-   * Ensure the Personas table from Phase 1 exists with fields like id, name (e.g., "The Patient"), type (e.g., "MS Content Council"), and systemPrompt.  
-2. **\[Backend\] Persona API:**  
-   * Create new CRUD endpoints in server.js:  
-     * GET /api/personas (List all personas)  
-     * POST /api/personas (Create a new persona)  
-     * PUT /api/personas/:id (Update a persona)  
-     * DELETE /api/personas/:id (Delete a persona)  
-3. **\[Backend\] Refactor Focus Group Logic:**  
-   * Modify POST /api/content/create \[cite: ryan258/virtuous-content-cycle/server.js\] to accept an array of personaIds instead of targetMarketCount and randomCount.  
-   * Refactor aiService.js \-\> getFocusGroupFeedback \[cite: ryan258/virtuous-content-cycle/aiService.js\] to:  
-     1. Accept an array of personaIds.  
-     2. Fetch those personas from the database (via databaseService.js).  
-     3. Run the focus group using the selected personas.  
-     4. The static focusGroupPersonas.json \[cite: ryan258/virtuous-content-cycle/focusGroupPersonas.json\] can now be used as a seeder for the database, but not read directly by the app.  
-4. **\[Frontend\] "Persona Launchpad" UI:**  
-   * Create a new "Personas" tab/page in public/index.html \[cite: ryan258/virtuous-content-cycle/public/index.html\] with a form to manage (CRUD) personas.  
+1. [x] **\[DB\] Personas Table:**
+   * Ensure the Personas table from Phase 1 exists with fields like id, name (e.g., "The Patient"), type (e.g., "MS Content Council"), and systemPrompt.
+2. [x] **\[Backend\] Persona API:**
+   * Create new CRUD endpoints in server.js:
+     * GET /api/personas (List all personas)
+     * POST /api/personas (Create a new persona)
+     * PUT /api/personas/:id (Update a persona)
+     * DELETE /api/personas/:id (Delete a persona)
+3. [x] **\[Backend\] Refactor Focus Group Logic:**
+   * Modify POST /api/content/create \[cite: ryan258/virtuous-content-cycle/server.js\] to accept an array of personaIds instead of targetMarketCount and randomCount.
+   * Refactor aiService.js \-\> getFocusGroupFeedback \[cite: ryan258/virtuous-content-cycle/aiService.js\] to:
+     1. Accept an array of personaIds.
+     2. Fetch those personas from the database (via databaseService.js).
+     3. Run the focus group using the selected personas.
+     4. The static focusGroupPersonas.json \[cite: ryan258/virtuous-content-cycle/focusGroupPersonas.json\] can now be used as a seeder for the database, but not read directly by the app.
+4. [x] **\[Frontend\] "Persona Launchpad" UI:**
+   * Create a new "Personas" tab/page in public/index.html \[cite: ryan258/virtuous-content-cycle/public/index.html\] with a form to manage (CRUD) personas.
    * In the "Create Content" UI, replace the number inputs \[cite: ryan258/virtuous-content-cycle/public/index.html\] with a dynamic checklist of available personas fetched from GET /api/personas.
 
 ## **Phase 3: Core Loop Enhancements ("Editor Steering" & Metrics)**

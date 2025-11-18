@@ -198,6 +198,143 @@ button:disabled {
     vertical-align: middle;
 }
 
+/* Tabs */
+.tab-nav {
+    display: flex;
+    border-bottom: 2px solid #ddd;
+    margin: 10px 0 20px 0;
+    gap: 8px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 12px 18px;
+    cursor: pointer;
+    font-size: 16px;
+    color: #555;
+}
+
+.tab-btn.active {
+    border-bottom-color: #007bff;
+    color: #007bff;
+    font-weight: 600;
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+/* Persona launchpad */
+.persona-launchpad {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 6px;
+}
+
+.persona-form, .persona-list {
+    background: #fff;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+}
+
+.persona-form textarea {
+    min-height: 120px;
+}
+
+.persona-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.persona-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid #eee;
+    background: #fafafa;
+}
+
+.persona-name {
+    font-weight: 600;
+}
+
+.persona-type {
+    margin-left: auto;
+    font-size: 12px;
+}
+
+.persona-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #fff;
+}
+
+.persona-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.small-btn {
+    padding: 6px 10px;
+    font-size: 14px;
+}
+
+.secondary {
+    background: #fff;
+    color: #333;
+    border: 1px solid #ccc;
+}
+
+.danger {
+    background: #e55353;
+}
+
+.persona-list h3 {
+    margin-top: 0;
+}
+
+/* Focus group persona chips */
+.persona-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background: #eef5ff;
+    margin-right: 6px;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }

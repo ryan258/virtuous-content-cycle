@@ -1,7 +1,10 @@
 const OpenAI = require('openai');
-const personas = require('./focusGroupPersonas.json');
+const databaseService = require('./databaseService');
+const fallbackFocusGroupPersonas = require('./focusGroupPersonas.json');
 
 const useMockAi = (process.env.USE_MOCK_AI || '').toLowerCase() === 'true' || !process.env.OPENROUTER_API_KEY;
+const DEFAULT_TARGET_MARKET_COUNT = 3;
+const DEFAULT_RANDOM_COUNT = 2;
 // Sherlock Think Alpha: reasoning model, better for thoughtful content feedback
 const defaultEditorModel = 'openrouter/sherlock-think-alpha';
 const defaultFocusModel = 'openrouter/sherlock-think-alpha';
@@ -116,51 +119,75 @@ Focus group feedback summary:
 
 const getFocusGroupFeedback = async (content, focusGroupConfig = {}) => {
   const { focusModel } = getModels();
-  const targetMarketCount = focusGroupConfig.targetMarketCount ?? 3;
-  const randomCount = focusGroupConfig.randomCount ?? 2;
+  const targetMarketCount = focusGroupConfig.targetMarketCount ?? DEFAULT_TARGET_MARKET_COUNT;
+  const randomCount = focusGroupConfig.randomCount ?? DEFAULT_RANDOM_COUNT;
+  const personaIds = Array.isArray(focusGroupConfig.personaIds) ? focusGroupConfig.personaIds : [];
+
+  const selectedPersonas = selectPersonas({ personaIds, targetMarketCount, randomCount });
+
+  if (selectedPersonas.length === 0) {
+    return {
+      feedback: buildMockFocusGroupFeedback(content, selectedPersonas),
+      mode: 'live-fallback',
+      focusModel,
+      lastError: 'No personas available for focus group.'
+    };
+  }
 
   if (useMockAi) {
-    return { feedback: buildMockFocusGroupFeedback(content, targetMarketCount, randomCount), mode: 'mock', focusModel };
+    return { feedback: buildMockFocusGroupFeedback(content, selectedPersonas), mode: 'mock', focusModel };
   }
 
   try {
-    // Select personas based on configuration
-    const selectedPersonas = selectPersonas(targetMarketCount, randomCount);
     const feedback = await Promise.all(selectedPersonas.map(persona => getFeedbackFromPersona(content, persona, focusModel)));
     const valid = feedback.filter(f => !f.error && typeof f.rating === 'number' && f.rating > 0);
     if (valid.length === 0) {
       console.warn('Focus group API returned no valid feedback; using mock fallback.');
-      return { feedback: buildMockFocusGroupFeedback(content, targetMarketCount, randomCount), mode: 'live-fallback', focusModel, lastError: 'No valid focus group responses received.' };
+      return { feedback: buildMockFocusGroupFeedback(content, selectedPersonas), mode: 'live-fallback', focusModel, lastError: 'No valid focus group responses received.' };
     }
     return { feedback, mode: 'live', focusModel };
   } catch (err) {
     console.warn('Focus group API failed, falling back to mock feedback:', err.message);
-    return { feedback: buildMockFocusGroupFeedback(content, targetMarketCount, randomCount), mode: 'live-fallback', focusModel, lastError: err.message };
+    return { feedback: buildMockFocusGroupFeedback(content, selectedPersonas), mode: 'live-fallback', focusModel, lastError: err.message };
   }
 };
 
-function selectPersonas(targetMarketCount, randomCount) {
-  const targetMarketPersonas = personas.filter(p => p.type === 'target_market');
-  const randomPersonas = personas.filter(p => p.type === 'random');
+function selectPersonas({ personaIds = [], targetMarketCount = 3, randomCount = 2 }) {
+  // Prefer explicit persona IDs
+  if (personaIds.length > 0) {
+    const dbPersonas = databaseService.getPersonasByIds(personaIds);
+    const map = new Map(dbPersonas.map(p => [p.id, p]));
+    return personaIds.map(id => map.get(id)).filter(Boolean);
+  }
+
+  let targetMarketPersonas = databaseService.getPersonasByType('target_market');
+  let randomPersonas = databaseService.getPersonasByType('random');
+
+  if (targetMarketPersonas.length === 0 && randomPersonas.length === 0) {
+    console.warn('No personas in database. Seed personas before running focus groups.');
+    return [];
+  }
 
   const selected = [];
 
-  // Add target market personas (cycle through if we need more than available)
   for (let i = 0; i < targetMarketCount; i++) {
-    const persona = targetMarketPersonas[i % targetMarketPersonas.length];
-    selected.push({
-      ...persona,
-      id: `${persona.id}_${Math.floor(i / targetMarketPersonas.length) + 1}`,
-    });
+    const persona = targetMarketPersonas[i % Math.max(targetMarketPersonas.length, 1)];
+    if (persona) {
+      selected.push({
+        ...persona,
+        id: i < targetMarketPersonas.length ? persona.id : `${persona.id}_${Math.floor(i / Math.max(targetMarketPersonas.length, 1)) + 1}`
+      });
+    }
   }
 
-  // Add random personas (cycle through if we need more than available)
   for (let i = 0; i < randomCount; i++) {
-    const persona = randomPersonas[i % randomPersonas.length];
-    selected.push({
-      ...persona,
-      id: `${persona.id}_${Math.floor(i / randomPersonas.length) + 1}`,
-    });
+    const persona = randomPersonas[i % Math.max(randomPersonas.length, 1)];
+    if (persona) {
+      selected.push({
+        ...persona,
+        id: i < randomPersonas.length ? persona.id : `${persona.id}_${Math.floor(i / Math.max(randomPersonas.length, 1)) + 1}`
+      });
+    }
   }
 
   return selected;
@@ -276,11 +303,11 @@ const getFeedbackThemes = (likes, dislikes) => {
     }));
 };
 
-function buildMockFocusGroupFeedback(content, targetMarketCount = 3, randomCount = 2) {
-  const selectedPersonas = selectPersonas(targetMarketCount, randomCount);
+function buildMockFocusGroupFeedback(content, selectedPersonas = []) {
+  const personasToUse = selectedPersonas.length > 0 ? selectedPersonas : selectPersonas({ targetMarketCount: 3, randomCount: 2 });
   const now = new Date();
   const baseRating = Math.max(6, Math.min(9, 7 + (content.length % 3) - 1));
-  return selectedPersonas.map((persona, idx) => {
+  return personasToUse.map((persona, idx) => {
     const rating = Math.min(10, Math.max(4, baseRating + ((idx % 2 === 0) ? 1 : -1)));
     const likes = ['clarity', 'tone', 'structure'].slice(0, 2);
     const dislikes = ['needs stronger hook', 'add specifics'].slice(0, 1 + (idx % 2));

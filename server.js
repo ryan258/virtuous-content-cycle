@@ -6,6 +6,7 @@ const { iterationStateSchema, userEditSchema } = require('./models.js');
 const databaseService = require('./databaseService.js');
 const aiService = require('./aiService.js');
 const { BadRequestError, NotFoundError } = require('./errors.js');
+const focusGroupPersonas = require('./focusGroupPersonas.json');
 
 const app = express();
 
@@ -30,6 +31,20 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(express.static('public'));
 
+// Seed personas on startup only if database is empty
+try {
+  const existingPersonas = databaseService.getAllPersonas();
+  if (existingPersonas.length === 0) {
+    console.log('📝 Seeding default personas...');
+    databaseService.seedPersonas(focusGroupPersonas);
+  } else {
+    console.log(`✅ Found ${existingPersonas.length} personas, skipping seed`);
+  }
+} catch (err) {
+  console.error('Failed to seed personas on startup:', err);
+  throw err;
+}
+
 // Routes
 app.post('/api/content/create', createContent);
 app.get('/api/content/:id', getContent);
@@ -40,6 +55,12 @@ app.get('/api/content/:id/history', getContentHistory);
 // Support both GET and POST for export (backward compatibility)
 app.get('/api/content/:id/export', exportContent);
 app.post('/api/content/:id/export', exportContent);
+
+// Personas CRUD
+app.get('/api/personas', listPersonas);
+app.post('/api/personas', createPersona);
+app.put('/api/personas/:id', updatePersona);
+app.delete('/api/personas/:id', deletePersona);
 
 
 app.get('/health', (req, res) => {
@@ -84,6 +105,7 @@ async function createContent(req, res, next) {
     const validatedState = validationResult.data;
     const contentId = `content-${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID()}`;
     const initialCycle = 1;
+    const personaIds = Array.isArray(metadata.personaIds) ? metadata.personaIds : null;
 
     // Wrap content creation in transaction for atomicity
     const createContentAndCycle = databaseService.db.transaction(() => {
@@ -97,7 +119,8 @@ async function createContent(req, res, next) {
         convergenceThreshold: validatedState.metadata.convergenceThreshold,
         costEstimate: validatedState.metadata.costEstimate ?? 0,
         targetMarketCount: validatedState.metadata.focusGroupConfig?.targetMarketCount ?? 3,
-        randomCount: validatedState.metadata.focusGroupConfig?.randomCount ?? 2
+        randomCount: validatedState.metadata.focusGroupConfig?.randomCount ?? 2,
+        personaIds
       });
 
       // Create initial Cycle
@@ -149,6 +172,7 @@ async function getContent(req, res, next) {
 async function runFocusGroup(req, res, next) {
   try {
     const { id } = req.params;
+    const { personaIds: personaIdsFromBody } = req.body || {};
 
     // Check if content exists
     const contentItem = databaseService.getContentItem(id);
@@ -171,10 +195,15 @@ async function runFocusGroup(req, res, next) {
       throw new BadRequestError(`Focus group can only be run on cycles with status 'created' or 'awaiting_focus_group'. Current status: ${cycle.status}`);
     }
 
-    // Use stored focus group config from content item
+    // Prefer explicit personaIds from request, then stored personaIds, else fallback to counts
+    const personaIds = Array.isArray(personaIdsFromBody) && personaIdsFromBody.length > 0
+      ? personaIdsFromBody
+      : (contentItem.personaIds ? JSON.parse(contentItem.personaIds) : []);
+
     const focusGroupConfig = {
       targetMarketCount: contentItem.targetMarketCount ?? 3,
-      randomCount: contentItem.randomCount ?? 2
+      randomCount: contentItem.randomCount ?? 2,
+      personaIds
     };
 
     const { feedback: focusGroupRatings, mode: aiMode, lastError: aiError, focusModel } = await aiService.getFocusGroupFeedback(cycle.currentVersion, focusGroupConfig);
@@ -451,6 +480,98 @@ async function exportContent(req, res, next) {
       res.attachment(`content-${id}.json`);
       res.send(iterationStates);
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+async function listPersonas(req, res, next) {
+  try {
+    const personas = databaseService.getAllPersonas();
+    res.status(200).json(personas);
+  } catch (error) {
+    next(error);
+  }
+};
+
+async function createPersona(req, res, next) {
+  try {
+    const { id, name, type, persona, systemPrompt } = req.body;
+    if (!name || !type || !persona || !systemPrompt) {
+      throw new BadRequestError('name, type, persona, and systemPrompt are required');
+    }
+    const trimmedName = name.trim();
+    const trimmedPersona = persona.trim();
+    const trimmedPrompt = systemPrompt.trim();
+    if (trimmedName.length === 0 || trimmedPersona.length === 0 || trimmedPrompt.length === 0) {
+      throw new BadRequestError('Fields cannot be empty');
+    }
+    if (systemPrompt && systemPrompt.length > 10000) {
+      throw new BadRequestError('systemPrompt cannot exceed 10,000 characters');
+    }
+    if (persona && persona.length > 500) {
+      throw new BadRequestError('persona description cannot exceed 500 characters');
+    }
+    const personaId = id || `persona-${crypto.randomUUID()}`;
+    const created = databaseService.createPersona({ id: personaId, name: trimmedName, type, persona: trimmedPersona, systemPrompt: trimmedPrompt });
+    res.status(201).json(created);
+  } catch (error) {
+    next(error);
+  }
+};
+
+async function updatePersona(req, res, next) {
+  try {
+    const { id } = req.params;
+    const existing = databaseService.getPersona(id);
+    if (!existing) {
+      throw new NotFoundError(`Persona with id ${id} not found`);
+    }
+    const { name, type, persona, systemPrompt } = req.body;
+    if (!name || !type || !persona || !systemPrompt) {
+      throw new BadRequestError('name, type, persona, and systemPrompt are required');
+    }
+    const trimmedName = name.trim();
+    const trimmedPersona = persona.trim();
+    const trimmedPrompt = systemPrompt.trim();
+    if (trimmedName.length === 0 || trimmedPersona.length === 0 || trimmedPrompt.length === 0) {
+      throw new BadRequestError('Fields cannot be empty');
+    }
+    if (systemPrompt && systemPrompt.length > 10000) {
+      throw new BadRequestError('systemPrompt cannot exceed 10,000 characters');
+    }
+    if (persona && persona.length > 500) {
+      throw new BadRequestError('persona description cannot exceed 500 characters');
+    }
+    const updated = databaseService.updatePersona(id, { name: trimmedName, type, persona: trimmedPersona, systemPrompt: trimmedPrompt });
+    res.status(200).json(updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
+async function deletePersona(req, res, next) {
+  try {
+    const { id } = req.params;
+    const existing = databaseService.getPersona(id);
+    if (!existing) {
+      throw new NotFoundError(`Persona with id ${id} not found`);
+    }
+    const inUse = databaseService.db.prepare(`
+      SELECT COUNT(*) as count
+      FROM ContentItems
+      WHERE personaIds IS NOT NULL
+        AND json_valid(personaIds)
+        AND EXISTS (
+          SELECT 1 FROM json_each(personaIds)
+          WHERE value = ?
+        )
+    `).get(id);
+    if (inUse.count > 0) {
+      throw new BadRequestError(`Cannot delete persona "${id}" - it is in use by ${inUse.count} content item(s)`);
+    }
+    const result = databaseService.deletePersona(id);
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
