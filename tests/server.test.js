@@ -88,4 +88,16 @@ describe('Content creation with personaIds', () => {
     expect(response.status).toBe(201);
     expect(response.body.metadata.focusGroupConfig.personaIds).toEqual(personaIds);
   });
+
+  test('POST /api/content/create rejects overly long editor instructions', async () => {
+    const longInstructions = 'a'.repeat(1001);
+    const editorRes = await request(app)
+      .post('/api/content/fake-content-id/run-editor')
+      .send({
+        selectedParticipantIds: [],
+        editorInstructions: longInstructions
+      });
+
+    expect(editorRes.status).toBe(400);
+  });
 });

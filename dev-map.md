@@ -66,17 +66,17 @@ Goal: Evolve the VCC from a single-run tool into a personalized, autonomous cont
 
 **Key Tasks:**
 
-1. **\[Feature\] "Editor Steering" Instructions:**  
-   * **UI:** Add \<textarea id="editor-instructions" placeholder="Optional instructions for the editor... (e.g., 'Focus on the tone, ignore the length.')"\> to the "Actions" panel in public/index.html.  
-   * **Backend:** Update POST /.../run-editor in server.js \[cite: ryan258/virtuous-content-cycle/server.js\] to accept an editorInstructions string from the request body.  
-   * **Backend:** Pass these instructions to aiService.js \-\> getEditorRevision \[cite: ryan258/virtuous-content-cycle/aiService.js\] and inject them into the system prompt.  
-2. **\[Feature\] Implement Convergence Logic:**  
-   * **Backend:** In aiService.js \-\> aggregateFeedback, replace the hardcoded convergenceScore \= 0.85 \[cite: ryan258/virtuous-content-cycle/aiService.js\] with a real calculation (e.g., based on the standard deviation of ratings).  
-   * **Backend:** Store this score in the Cycles table.  
-   * **UI:** Display the convergence score on the dashboard.  
-3. **\[Feature\] Implement Cost Tracking:**  
-   * **Backend:** In aiService.js, modify all AI calls (both getEditorRevision and getFeedbackFromPersona) to capture the usage (tokens, cost) from the OpenRouter API response.  
-   * **Backend:** Store prompt\_tokens, completion\_tokens, and cost in the Feedback and Cycles tables.  
+1. [x] **\[Feature\] "Editor Steering" Instructions:**
+   * **UI:** Add \<textarea id="editor-instructions" placeholder="Optional instructions for the editor... (e.g., 'Focus on the tone, ignore the length.')"\> to the "Actions" panel in public/index.html.
+   * **Backend:** Update POST /.../run-editor in server.js \[cite: ryan258/virtuous-content-cycle/server.js\] to accept an editorInstructions string from the request body.
+   * **Backend:** Pass these instructions to aiService.js \-\> getEditorRevision \[cite: ryan258/virtuous-content-cycle/aiService.js\] and inject them into the system prompt.
+2. [x] **\[Feature\] Implement Convergence Logic:**
+   * **Backend:** In aiService.js \-\> aggregateFeedback, replace the hardcoded convergenceScore \= 0.85 \[cite: ryan258/virtuous-content-cycle/aiService.js\] with a real calculation (e.g., based on the standard deviation of ratings).
+   * **Backend:** Store this score in the Cycles table.
+   * **UI:** Display the convergence score on the dashboard.
+3. [x] **\[Feature\] Implement Cost Tracking:**
+   * **Backend:** In aiService.js, modify all AI calls (both getEditorRevision and getFeedbackFromPersona) to capture the usage (tokens, cost) from the OpenRouter API response.
+   * **Backend:** Store prompt\_tokens, completion\_tokens, and cost in the Feedback and Cycles tables.
    * **UI:** Display the *total running cost* for the content item on the dashboard.
 
 ## **Phase 4: Advanced AI \- The "Debate" Step**

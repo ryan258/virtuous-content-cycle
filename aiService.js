@@ -33,7 +33,7 @@ function getClient() {
   return cachedClient;
 }
 
-const getEditorRevision = async (originalContent, aggregatedFeedback, selectedFeedback = null) => {
+const getEditorRevision = async (originalContent, aggregatedFeedback, selectedFeedback = null, editorInstructions = '') => {
   const { editorModel } = getModels();
   try {
     if (useMockAi) {
@@ -44,6 +44,7 @@ const getEditorRevision = async (originalContent, aggregatedFeedback, selectedFe
         editorReasoning: 'Mock mode applies a lightweight edit to let you demo the flow without API calls.',
         timestamp: new Date().toISOString(),
         modelUsed: 'mock-editor',
+        usage: { promptTokens: 0, completionTokens: 0, totalCost: 0 }
       };
     }
 
@@ -76,7 +77,8 @@ Output JSON:
 {
   "revisedContent": "...",
   "changesSummary": "...",
-  "reasoning": "..."
+  "reasoning": "...",
+  "instructionsApplied": true
 }`
         },
         {
@@ -88,12 +90,14 @@ Focus group feedback summary:
 - Average rating: ${aggregatedFeedback.averageRating}/10
 - Top likes: ${aggregatedFeedback.topLikes.join(', ')}
 - Top dislikes: ${aggregatedFeedback.topDislikes.join(', ')}
-- Specific suggestions: ${aggregatedFeedback.feedbackThemes.map(t => `${t.theme} (${t.sentiment})`).join(', ')}${detailedFeedback}`
+- Specific suggestions: ${aggregatedFeedback.feedbackThemes.map(t => `${t.theme} (${t.sentiment})`).join(', ')}
+${editorInstructions ? `\nAdditional editor instructions: ${editorInstructions}` : ''}${detailedFeedback}`
         },
       ],
     });
 
-    const revision = JSON.parse(response.choices[0].message.content);
+    const choice = response.choices[0];
+    const revision = JSON.parse(choice.message.content);
 
     return {
       revisedContent: revision.revisedContent,
@@ -101,6 +105,11 @@ Focus group feedback summary:
       editorReasoning: revision.reasoning,
       timestamp: new Date().toISOString(),
       modelUsed: editorModel,
+      usage: {
+        promptTokens: response.usage?.prompt_tokens ?? 0,
+        completionTokens: response.usage?.completion_tokens ?? 0,
+        totalCost: calculateCost(response)
+      }
     };
   } catch (error) {
     console.error('Error getting editor revision, falling back to mock:', error);
@@ -111,6 +120,7 @@ Focus group feedback summary:
         editorReasoning: 'API call failed; mock fallback used to keep the cycle moving.',
         timestamp: new Date().toISOString(),
         modelUsed: 'mock-editor-fallback',
+        usage: { promptTokens: 0, completionTokens: 0, totalCost: 0 },
       };
     }
     throw new Error('Failed to get editor revision.');
@@ -218,6 +228,11 @@ ${content}` },
       suggestions: feedback.suggestions,
       fullResponse: response.choices[0].message.content,
       timestamp: new Date().toISOString(),
+      usage: {
+        promptTokens: response.usage?.prompt_tokens ?? 0,
+        completionTokens: response.usage?.completion_tokens ?? 0,
+        totalCost: calculateCost(response)
+      }
     };
   } catch (error) {
     console.error(`Error getting feedback from persona ${persona.id}:`, error);
@@ -232,6 +247,7 @@ ${content}` },
       fullResponse: '',
       timestamp: new Date().toISOString(),
       error: true,
+      usage: { promptTokens: 0, completionTokens: 0, totalCost: 0 }
     };
   }
 };
@@ -254,8 +270,7 @@ const aggregateFeedback = (feedback) => {
     
     const feedbackThemes = getFeedbackThemes(allLikes, allDislikes);
 
-    // Placeholder for convergence score
-    const convergenceScore = 0.85;
+    const convergenceScore = calculateConvergenceScore(ratings);
 
     return {
         averageRating,
@@ -333,6 +348,31 @@ function getModels() {
     focusModel: process.env.OPENROUTER_FOCUS_MODEL || defaultFocusModel,
     editorModel: process.env.OPENROUTER_EDITOR_MODEL || defaultEditorModel,
   };
+}
+
+function calculateCost(response) {
+  const promptTokens = response.usage?.prompt_tokens ?? 0;
+  const completionTokens = response.usage?.completion_tokens ?? 0;
+  const billedUnits = response.usage?.total_tokens ?? (promptTokens + completionTokens);
+  // NOTE: OpenRouter pricing varies by model and the API does not return cost.
+  // This is a simplified placeholder that relies on an optional env override.
+  // TODO: replace with model-aware pricing lookup or OpenRouter include_costs support.
+  const perTokenCost = parseFloat(process.env.OPENROUTER_TOKEN_COST || '0');
+  return perTokenCost > 0 ? billedUnits * perTokenCost : 0;
+}
+
+function calculateConvergenceScore(ratings) {
+  if (!ratings || ratings.length === 0) return 0;
+  if (ratings.length === 1) return 1;
+
+  const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+  const variance = ratings.reduce((acc, r) => acc + Math.pow(r - avg, 2), 0) / ratings.length;
+  const stdDev = Math.sqrt(variance);
+
+  const MAX_EXPECTED_STD_DEV = 3; // For 1-10 rating scale
+  // Normalize: assuming rating scale 1-10, map lower stdDev -> higher score
+  const normalized = Math.max(0, Math.min(1, 1 - (stdDev / MAX_EXPECTED_STD_DEV)));
+  return Number(normalized.toFixed(2));
 }
 
 module.exports = {

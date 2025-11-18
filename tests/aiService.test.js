@@ -14,6 +14,7 @@ describe('AI Service', () => {
       expect(result.averageRating).toBeCloseTo(8.0);
       expect(result.topLikes).toContain('clarity');
       expect(result.topDislikes.length).toBeGreaterThan(0);
+      expect(result.convergenceScore).toBeGreaterThan(0);
     });
 
     test('should handle empty feedback array', () => {

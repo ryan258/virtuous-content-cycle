@@ -503,6 +503,8 @@ const getIterationState = (contentId, cycleNumber) => {
   }
 
   const feedbacks = getAllFeedbackForCycle(cycle.id);
+  const totalCostRow = db.prepare('SELECT SUM(totalCost) as totalCost FROM Cycles WHERE contentId = ?').get(contentId);
+  const totalCost = totalCostRow?.totalCost || 0;
 
   // Reconstruct the old format for backward compatibility
   return {
@@ -553,6 +555,7 @@ const getIterationState = (contentId, cycleNumber) => {
       maxCycles: contentItem.maxCycles,
       convergenceThreshold: contentItem.convergenceThreshold,
       costEstimate: contentItem.costEstimate ?? 0,
+      totalCost,
       focusGroupConfig: {
         targetMarketCount: contentItem.targetMarketCount ?? 3,
         randomCount: contentItem.randomCount ?? 2,

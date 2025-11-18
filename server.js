@@ -225,12 +225,21 @@ async function runFocusGroup(req, res, next) {
           dislikes: feedback.dislikes,
           suggestions: feedback.suggestions,
           fullResponse: feedback.fullResponse,
-          timestamp: feedback.timestamp
+          timestamp: feedback.timestamp,
+          promptTokens: feedback.usage?.promptTokens || 0,
+          completionTokens: feedback.usage?.completionTokens || 0,
+          cost: feedback.usage?.totalCost || 0
         });
       }
 
       // Update cycle with aggregated feedback
       databaseService.updateCycleWithAggregatedFeedback(cycle.id, aggregatedFeedback);
+
+      // Update cost usage at cycle level (aggregate from participants)
+      const totalPrompt = focusGroupRatings.reduce((sum, f) => sum + (f.usage?.promptTokens || 0), 0);
+      const totalCompletion = focusGroupRatings.reduce((sum, f) => sum + (f.usage?.completionTokens || 0), 0);
+      const totalCost = focusGroupRatings.reduce((sum, f) => sum + (f.usage?.totalCost || 0), 0);
+      databaseService.updateCycleCosts(cycle.id, totalPrompt, totalCompletion, totalCost);
 
       // Update AI metadata
       const now = new Date().toISOString();
@@ -261,7 +270,11 @@ async function runFocusGroup(req, res, next) {
 async function runEditor(req, res, next) {
   try {
     const { id } = req.params;
-    const { selectedParticipantIds } = req.body;
+    const { selectedParticipantIds, editorInstructions = '' } = req.body;
+
+    if (editorInstructions && editorInstructions.length > 1000) {
+      throw new BadRequestError('editorInstructions cannot exceed 1000 characters');
+    }
 
     // Check if content exists
     const contentItem = databaseService.getContentItem(id);
@@ -313,13 +326,23 @@ async function runEditor(req, res, next) {
     const editorPass = await aiService.getEditorRevision(
       cycle.currentVersion,
       feedbackToUse,
-      selectedFeedback
+      selectedFeedback,
+      editorInstructions
     );
 
     // Wrap all database writes in a transaction for atomicity
     const saveEditorResults = databaseService.db.transaction(() => {
       // Update cycle with editor pass
       databaseService.updateCycleWithEditorPass(cycle.id, editorPass);
+
+      if (editorPass.usage) {
+        databaseService.updateCycleCosts(
+          cycle.id,
+          editorPass.usage.promptTokens,
+          editorPass.usage.completionTokens,
+          editorPass.usage.totalCost
+        );
+      }
 
       // Update current version
       databaseService.db.prepare('UPDATE Cycles SET currentVersion = ?, updatedAt = ? WHERE id = ?')

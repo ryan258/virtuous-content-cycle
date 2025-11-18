@@ -40,6 +40,7 @@ const contentTabBtn = document.getElementById('content-tab-btn');
 const personasTabBtn = document.getElementById('personas-tab-btn');
 const contentTab = document.getElementById('content-tab');
 const personasTab = document.getElementById('personas-tab');
+const editorInstructionsEl = document.getElementById('editor-instructions');
 
 // Persona launchpad elements
 const personaFormStatus = document.getElementById('persona-form-status');
@@ -142,11 +143,15 @@ function displayFocusGroupSummary(data) {
     const topLikesText = agg.topLikes.map(escapeHtml).join(', ') || 'None';
     const topDislikesText = agg.topDislikes.map(escapeHtml).join(', ') || 'None';
     const keyThemesText = agg.feedbackThemes.slice(0, 3).map(t => escapeHtml(t.theme)).join(', ') || 'None';
+    const convergenceText = typeof agg.convergenceScore === 'number' ? agg.convergenceScore.toFixed(2) : 'N/A';
 
     // Summary in actions panel
     focusGroupSummary.innerHTML = `
         <h4>📊 Focus Group Results (${count} participants)</h4>
         <div class="rating-display">Average Rating: ${agg.averageRating.toFixed(1)}/10</div>
+        <div class="feedback-list">
+            <strong>🔄 Convergence:</strong> ${convergenceText}
+        </div>
         <div class="feedback-list">
             <strong>👍 Top Likes:</strong> ${topLikesText}
         </div>
@@ -523,7 +528,8 @@ runEditorBtn.addEventListener('click', async () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                selectedParticipantIds
+                selectedParticipantIds,
+                editorInstructions: editorInstructionsEl.value
             })
         });
 
@@ -641,6 +647,14 @@ function updateUI(data) {
 
     // Enable export if we have content
     exportJsonBtn.disabled = !currentContentId;
+
+    if (data.metadata?.totalCost !== undefined && typeof data.metadata.totalCost === 'number') {
+        // Display running cost in cycle info footer if available
+        const costEl = document.createElement('p');
+        costEl.className = 'muted';
+        costEl.textContent = `Total cost so far: $${(data.metadata.totalCost || 0).toFixed(4)}`;
+        cycleInfo.appendChild(costEl);
+    }
 
     if (data.aiMeta?.mode) {
         const mode = data.aiMeta.mode;
