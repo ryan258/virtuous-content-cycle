@@ -87,17 +87,17 @@ Goal: Evolve the VCC from a single-run tool into a personalized, autonomous cont
 
 **Key Tasks:**
 
-1. **\[Backend\] Create runFeedbackDebate function:**  
-   * In aiService.js, create a new async function runFeedbackDebate(feedbackItems).  
-   * This function will use a high-reasoning model (like the editor's claude-3.5-sonnet \[cite: ryan258/virtuous-content-cycle/aiService.js\]) with a new prompt: *"You are a focus group moderator. Synthesize the key points of agreement, disagreement, and the most critical actionable suggestions from the following reviews..."*  
-2. **\[Backend\] Integrate Debate into Editor Step:**  
-   * Modify the POST /.../run-editor controller in server.js \[cite: ryan258/virtuous-content-cycle/server.js\].  
-   * The *new* flow will be:  
-     1. Get the raw Feedback items for the cycle (based on selectedParticipantIds).  
-     2. Call aiService.js \-\> runFeedbackDebate() with this raw feedback.  
-     3. Pass the resulting *debate summary* (along with any editorInstructions from Phase 3\) to the aiService.js \-\> getEditorRevision() function.  
-   * This means the editor is now acting on a *synthesized summary*, not just raw feedback.  
-3. **\[UI\] Display Debate Summary:**  
+1. [x] **\[Backend\] Create runFeedbackDebate function:**
+   * In aiService.js, create a new async function runFeedbackDebate(feedbackItems).
+   * This function will use a high-reasoning model (like the editor's claude-3.5-sonnet \[cite: ryan258/virtuous-content-cycle/aiService.js\]) with a new prompt: *"You are a focus group moderator. Synthesize the key points of agreement, disagreement, and the most critical actionable suggestions from the following reviews..."*
+2. [x] **\[Backend\] Integrate Debate into Editor Step:**
+   * Modify the POST /.../run-editor controller in server.js \[cite: ryan258/virtuous-content-cycle/server.js\].
+   * The *new* flow will be:
+     1. Get the raw Feedback items for the cycle (based on selectedParticipantIds).
+     2. Call aiService.js \-\> runFeedbackDebate() with this raw feedback.
+     3. Pass the resulting *debate summary* (along with any editorInstructions from Phase 3\) to the aiService.js \-\> getEditorRevision() function.
+   * This means the editor is now acting on a *synthesized summary*, not just raw feedback.
+3. [x] **\[UI\] Display Debate Summary:**
    * Add a new "Moderator's Summary" section in the UI that appears after the focus group is complete, showing the user the synthesized points.
 
 ## **Phase 5: The "Chief of Staff" AI Orchestrator**

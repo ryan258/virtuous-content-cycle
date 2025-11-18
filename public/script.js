@@ -30,6 +30,7 @@ const userNotesEl = document.getElementById('user-notes');
 const statusMessage = document.getElementById('status-message');
 const actionStatus = document.getElementById('action-status');
 const focusGroupSummary = document.getElementById('focus-group-summary');
+const moderatorSummary = document.getElementById('moderator-summary');
 const detailedFeedbackPanel = document.getElementById('detailed-feedback');
 const detailedFeedbackContent = document.getElementById('detailed-feedback-content');
 const cycleInfo = document.getElementById('cycle-info');
@@ -638,6 +639,7 @@ function updateUI(data) {
     // Hide focus group summary when moving to next steps
     if (data.status !== 'focus_group_complete') {
         focusGroupSummary.style.display = 'none';
+        moderatorSummary.style.display = 'none';
         detailedFeedbackPanel.style.display = 'none';
     }
 
@@ -669,6 +671,7 @@ function updateUI(data) {
     }
 
     if (data.status === 'editor_complete') {
+        renderModeratorSummary(data);
         if (typeof Diff !== 'undefined') {
             const diff = Diff.createPatch('content', data.originalInput, data.currentVersion);
             diffViewer.textContent = diff;
@@ -676,6 +679,23 @@ function updateUI(data) {
             diffViewer.textContent = 'Diff library not loaded. Showing plain text comparison:\n\nOriginal:\n' + data.originalInput + '\n\nRevised:\n' + data.currentVersion;
         }
     }
+}
+
+function renderModeratorSummary(data) {
+    const moderator = data.editorPass?.moderator;
+    if (!moderator) {
+        moderatorSummary.style.display = 'none';
+        return;
+    }
+    const keyPointsHtml = (moderator.keyPoints || [])
+        .map(pt => `<li>${escapeHtml(pt)}</li>`)
+        .join('');
+    moderatorSummary.innerHTML = `
+        <h4>🧠 Moderator's Summary</h4>
+        <p>${escapeHtml(moderator.summary || '')}</p>
+        <div class="feedback-list"><strong>Key Points:</strong><ul>${keyPointsHtml || '<li>None provided</li>'}</ul></div>
+    `;
+    moderatorSummary.style.display = 'block';
 }
 
 // Initialize

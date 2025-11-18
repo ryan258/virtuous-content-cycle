@@ -33,7 +33,7 @@ function getClient() {
   return cachedClient;
 }
 
-const getEditorRevision = async (originalContent, aggregatedFeedback, selectedFeedback = null, editorInstructions = '') => {
+const getEditorRevision = async (originalContent, aggregatedFeedback, selectedFeedback = null, editorInstructions = '', moderatorSummary = null) => {
   const { editorModel } = getModels();
   try {
     if (useMockAi) {
@@ -44,6 +44,7 @@ const getEditorRevision = async (originalContent, aggregatedFeedback, selectedFe
         editorReasoning: 'Mock mode applies a lightweight edit to let you demo the flow without API calls.',
         timestamp: new Date().toISOString(),
         modelUsed: 'mock-editor',
+        moderator: moderatorSummary || null,
         usage: { promptTokens: 0, completionTokens: 0, totalCost: 0 }
       };
     }
@@ -58,6 +59,10 @@ const getEditorRevision = async (originalContent, aggregatedFeedback, selectedFe
   Dislikes: ${f.dislikes.join(', ')}
   Suggestions: ${f.suggestions}`).join('\n');
     }
+
+    const moderatorContext = moderatorSummary
+      ? `\n\nModerator's synthesized summary:\n${moderatorSummary.summary}\nKey points: ${(moderatorSummary.keyPoints || []).join('; ')}\n`
+      : '';
 
     const client = getClient();
     const response = await client.chat.completions.create({
@@ -91,7 +96,7 @@ Focus group feedback summary:
 - Top likes: ${aggregatedFeedback.topLikes.join(', ')}
 - Top dislikes: ${aggregatedFeedback.topDislikes.join(', ')}
 - Specific suggestions: ${aggregatedFeedback.feedbackThemes.map(t => `${t.theme} (${t.sentiment})`).join(', ')}
-${editorInstructions ? `\nAdditional editor instructions: ${editorInstructions}` : ''}${detailedFeedback}`
+${editorInstructions ? `\nAdditional editor instructions: ${editorInstructions}` : ''}${moderatorContext}${detailedFeedback}`
         },
       ],
     });
@@ -105,6 +110,7 @@ ${editorInstructions ? `\nAdditional editor instructions: ${editorInstructions}`
       editorReasoning: revision.reasoning,
       timestamp: new Date().toISOString(),
       modelUsed: editorModel,
+      moderator: moderatorSummary || null,
       usage: {
         promptTokens: response.usage?.prompt_tokens ?? 0,
         completionTokens: response.usage?.completion_tokens ?? 0,
@@ -120,6 +126,7 @@ ${editorInstructions ? `\nAdditional editor instructions: ${editorInstructions}`
         editorReasoning: 'API call failed; mock fallback used to keep the cycle moving.',
         timestamp: new Date().toISOString(),
         modelUsed: 'mock-editor-fallback',
+        moderator: moderatorSummary || null,
         usage: { promptTokens: 0, completionTokens: 0, totalCost: 0 },
       };
     }
@@ -202,6 +209,98 @@ function selectPersonas({ personaIds = [], targetMarketCount = 3, randomCount = 
 
   return selected;
 }
+
+const runFeedbackDebate = async (feedbackItems) => {
+  if (!feedbackItems || feedbackItems.length === 0) {
+    return {
+      summary: 'No feedback to synthesize.',
+      keyPoints: [],
+      patterns: '',
+      timestamp: new Date().toISOString(),
+      modelUsed: 'none',
+      usage: { promptTokens: 0, completionTokens: 0, totalCost: 0 }
+    };
+  }
+
+  const { editorModel } = getModels();
+
+  if (useMockAi) {
+    return {
+      summary: 'Mock moderator: synthesized key agreements and disagreements.',
+      keyPoints: ['Agreement: clear value prop', 'Disagreement: tone too casual', 'Action: tighten intro'],
+      patterns: '',
+      timestamp: new Date().toISOString(),
+      modelUsed: 'mock-debate',
+      usage: { promptTokens: 0, completionTokens: 0, totalCost: 0 }
+    };
+  }
+
+  try {
+    const client = getClient();
+    const response = await client.chat.completions.create({
+      model: editorModel,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a focus group moderator. Analyze the reviews below and synthesize:
+1) A concise summary (2-3 sentences) of consensus and key disagreements.
+2) The 3-5 most critical, actionable suggestions (prioritized by impact and frequency).
+3) Any notable patterns by persona type.
+
+Return JSON exactly as:
+{"summary":"...","keyPoints":["...","..."],"patterns":"..."}`
+        },
+        {
+          role: 'user',
+          content: feedbackItems.map(f => `
+Participant: ${f.participantId} (${f.participantType})
+Rating: ${f.rating}/10
+Likes: ${f.likes.join(', ')}
+Dislikes: ${f.dislikes.join(', ')}
+Suggestions: ${f.suggestions}
+---`).join('\n')
+        }
+      ]
+    });
+
+    let parsed;
+    try {
+      parsed = JSON.parse(response.choices[0].message.content);
+    } catch (parseErr) {
+      console.error('Failed to parse moderator response:', parseErr);
+      return {
+        summary: 'Moderator summary unavailable; using direct feedback.',
+        keyPoints: [],
+        patterns: '',
+        timestamp: new Date().toISOString(),
+        modelUsed: 'debate-parse-error',
+        usage: { promptTokens: 0, completionTokens: 0, totalCost: 0 }
+      };
+    }
+    return {
+      summary: parsed.summary,
+      keyPoints: parsed.keyPoints || [],
+      patterns: parsed.patterns || '',
+      timestamp: new Date().toISOString(),
+      modelUsed: editorModel,
+      usage: {
+        promptTokens: response.usage?.prompt_tokens ?? 0,
+        completionTokens: response.usage?.completion_tokens ?? 0,
+        totalCost: calculateCost(response)
+      }
+    };
+  } catch (err) {
+    console.error('Error running feedback debate, fallback to mock summary:', err);
+    return {
+      summary: 'Moderator summary unavailable; using direct feedback.',
+      keyPoints: [],
+      patterns: '',
+      timestamp: new Date().toISOString(),
+      modelUsed: 'debate-fallback',
+      usage: { promptTokens: 0, completionTokens: 0, totalCost: 0 }
+    };
+  }
+};
 
 const getFeedbackFromPersona = async (content, persona, focusModel) => {
   try {
@@ -379,6 +478,7 @@ module.exports = {
   getEditorRevision,
   getFocusGroupFeedback,
   aggregateFeedback,
+  runFeedbackDebate,
   getAiMode,
   getModels,
 };

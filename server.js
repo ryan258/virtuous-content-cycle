@@ -323,17 +323,29 @@ async function runEditor(req, res, next) {
           feedbackThemes: JSON.parse(cycle.feedbackThemes || '[]')
         };
 
+    const moderatorSummary = await aiService.runFeedbackDebate(selectedFeedback);
+
     const editorPass = await aiService.getEditorRevision(
       cycle.currentVersion,
       feedbackToUse,
       selectedFeedback,
-      editorInstructions
+      editorInstructions,
+      moderatorSummary
     );
 
     // Wrap all database writes in a transaction for atomicity
     const saveEditorResults = databaseService.db.transaction(() => {
       // Update cycle with editor pass
       databaseService.updateCycleWithEditorPass(cycle.id, editorPass);
+
+      if (moderatorSummary?.usage) {
+        databaseService.updateCycleCosts(
+          cycle.id,
+          moderatorSummary.usage.promptTokens || 0,
+          moderatorSummary.usage.completionTokens || 0,
+          moderatorSummary.usage.totalCost || 0
+        );
+      }
 
       if (editorPass.usage) {
         databaseService.updateCycleCosts(

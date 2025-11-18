@@ -78,6 +78,10 @@ const initializeSchema = () => {
       editorReasoning TEXT,
       editorModelUsed TEXT,
       editorTimestamp TEXT,
+      moderatorSummary TEXT,
+      moderatorKeyPoints TEXT,
+      moderatorModelUsed TEXT,
+      moderatorTimestamp TEXT,
 
       -- User review fields
       userApproved INTEGER,
@@ -155,6 +159,26 @@ const initializeSchema = () => {
   // Migrations: Add statusHistory column if it doesn't exist (for existing databases)
   try {
     db.exec(`ALTER TABLE Cycles ADD COLUMN statusHistory TEXT DEFAULT '[]'`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    db.exec(`ALTER TABLE Cycles ADD COLUMN moderatorSummary TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    db.exec(`ALTER TABLE Cycles ADD COLUMN moderatorKeyPoints TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    db.exec(`ALTER TABLE Cycles ADD COLUMN moderatorModelUsed TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    db.exec(`ALTER TABLE Cycles ADD COLUMN moderatorTimestamp TEXT`);
   } catch (e) {
     // Column already exists, ignore
   }
@@ -314,6 +338,10 @@ const updateCycleWithEditorPass = (cycleId, editorPass) => {
       editorReasoning = ?,
       editorModelUsed = ?,
       editorTimestamp = ?,
+      moderatorSummary = ?,
+      moderatorKeyPoints = ?,
+      moderatorModelUsed = ?,
+      moderatorTimestamp = ?,
       updatedAt = ?
     WHERE id = ?
   `);
@@ -324,6 +352,10 @@ const updateCycleWithEditorPass = (cycleId, editorPass) => {
     editorPass.editorReasoning,
     editorPass.modelUsed,
     editorPass.timestamp,
+    editorPass.moderator?.summary || null,
+    editorPass.moderator?.keyPoints ? JSON.stringify(editorPass.moderator.keyPoints) : null,
+    editorPass.moderator?.modelUsed || null,
+    editorPass.moderator?.timestamp || null,
     now,
     cycleId
   );
@@ -539,7 +571,13 @@ const getIterationState = (contentId, cycleNumber) => {
       changesSummary: cycle.editorChangesSummary,
       editorReasoning: cycle.editorReasoning,
       modelUsed: cycle.editorModelUsed,
-      timestamp: cycle.editorTimestamp
+      timestamp: cycle.editorTimestamp,
+      moderator: cycle.moderatorSummary ? {
+        summary: cycle.moderatorSummary,
+        keyPoints: JSON.parse(cycle.moderatorKeyPoints || '[]'),
+        modelUsed: cycle.moderatorModelUsed,
+        timestamp: cycle.moderatorTimestamp
+      } : undefined
     } : undefined,
     userEdit: cycle.userApproved !== null ? {
       approved: cycle.userApproved === 1,
