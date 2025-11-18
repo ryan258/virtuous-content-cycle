@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api/content';
+const API_URL = '/api/content';
 
 let currentContentId = null;
 let currentCycle = null;
@@ -35,10 +35,25 @@ const contentPreview = document.getElementById('content-preview');
 const selectAllFeedbackBtn = document.getElementById('select-all-feedback');
 const deselectAllFeedbackBtn = document.getElementById('deselect-all-feedback');
 
+// Helper function to safely escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Status message helpers
 function showStatus(element, message, type = 'loading') {
     element.className = `status-message ${type}`;
-    element.innerHTML = type === 'loading' ? `<span class="spinner"></span>${message}` : message;
+    if (type === 'loading') {
+        const spinner = document.createElement('span');
+        spinner.className = 'spinner';
+        element.innerHTML = '';
+        element.appendChild(spinner);
+        element.appendChild(document.createTextNode(message));
+    } else {
+        element.textContent = message;
+    }
 }
 
 function hideStatus(element) {
@@ -64,10 +79,11 @@ function updateCycleInfo(data) {
         'user_review_complete': 'Review Complete'
     };
 
+    // Use escapeHtml for user-provided data
     cycleInfo.innerHTML = `
-        <h3>Cycle ${data.cycle} <span class="status-badge ${data.status}">${statusDisplay[data.status] || data.status}</span></h3>
-        <p><strong>Content Type:</strong> ${data.metadata.contentType}</p>
-        <p><strong>Target Audience:</strong> ${data.metadata.targetAudience}</p>
+        <h3>Cycle ${data.cycle} <span class="status-badge ${data.status}">${statusDisplay[data.status] || escapeHtml(data.status)}</span></h3>
+        <p><strong>Content Type:</strong> ${escapeHtml(data.metadata.contentType)}</p>
+        <p><strong>Target Audience:</strong> ${escapeHtml(data.metadata.targetAudience)}</p>
         <p><strong>Max Cycles:</strong> ${data.metadata.maxCycles}</p>
     `;
 }
@@ -76,28 +92,37 @@ function updateContentPreview(data) {
     const version = data.editorPass ? 'Latest (After Editor)' : 'Original';
     const content = data.currentVersion;
 
-    contentPreview.innerHTML = `
-        <h3>Content Version: ${version}</h3>
-        <pre>${content}</pre>
-    `;
+    // Safely build the preview without innerHTML
+    contentPreview.innerHTML = '';
+    const h3 = document.createElement('h3');
+    h3.textContent = `Content Version: ${version}`;
+    const pre = document.createElement('pre');
+    pre.textContent = content;
+    contentPreview.appendChild(h3);
+    contentPreview.appendChild(pre);
 }
 
 function displayFocusGroupSummary(data) {
     const agg = data.aggregatedFeedback;
     const count = data.focusGroupRatings.length;
 
+    // Safely escape all AI-generated content
+    const topLikesText = agg.topLikes.map(escapeHtml).join(', ') || 'None';
+    const topDislikesText = agg.topDislikes.map(escapeHtml).join(', ') || 'None';
+    const keyThemesText = agg.feedbackThemes.slice(0, 3).map(t => escapeHtml(t.theme)).join(', ') || 'None';
+
     // Summary in actions panel
     focusGroupSummary.innerHTML = `
         <h4>📊 Focus Group Results (${count} participants)</h4>
         <div class="rating-display">Average Rating: ${agg.averageRating.toFixed(1)}/10</div>
         <div class="feedback-list">
-            <strong>👍 Top Likes:</strong> ${agg.topLikes.join(', ') || 'None'}
+            <strong>👍 Top Likes:</strong> ${topLikesText}
         </div>
         <div class="feedback-list">
-            <strong>👎 Top Dislikes:</strong> ${agg.topDislikes.join(', ') || 'None'}
+            <strong>👎 Top Dislikes:</strong> ${topDislikesText}
         </div>
         <div class="feedback-list">
-            <strong>💡 Key Themes:</strong> ${agg.feedbackThemes.slice(0, 3).map(t => t.theme).join(', ') || 'None'}
+            <strong>💡 Key Themes:</strong> ${keyThemesText}
         </div>
     `;
     focusGroupSummary.style.display = 'block';
@@ -109,29 +134,32 @@ function displayFocusGroupSummary(data) {
 function displayDetailedFeedback(data) {
     const ratings = data.focusGroupRatings;
 
+    // Safely escape all AI-generated content
     detailedFeedbackContent.innerHTML = ratings.map((rating, index) => {
         const ratingClass = rating.rating >= 7 ? '' : rating.rating >= 4 ? 'medium' : 'low';
+        const likesText = rating.likes.map(escapeHtml).join(', ') || 'None mentioned';
+        const dislikesText = rating.dislikes.map(escapeHtml).join(', ') || 'None mentioned';
         return `
-            <div class="persona-card" data-participant-id="${rating.participantId}">
+            <div class="persona-card" data-participant-id="${escapeHtml(rating.participantId)}">
                 <div class="card-header">
-                    <input type="checkbox" class="feedback-checkbox" data-participant-id="${rating.participantId}" checked>
+                    <input type="checkbox" class="feedback-checkbox" data-participant-id="${escapeHtml(rating.participantId)}" checked>
                     <h3>
-                        <span>${rating.participantId}</span>
+                        <span>${escapeHtml(rating.participantId)}</span>
                         <span class="rating-badge ${ratingClass}">${rating.rating}/10</span>
                     </h3>
                 </div>
                 <p><em>${rating.participantType === 'target_market' ? '🎯 Target Market' : '🌐 Random Participant'}</em></p>
                 <div class="feedback-section">
                     <strong>👍 Likes:</strong>
-                    <p>${rating.likes.join(', ') || 'None mentioned'}</p>
+                    <p>${likesText}</p>
                 </div>
                 <div class="feedback-section">
                     <strong>👎 Dislikes:</strong>
-                    <p>${rating.dislikes.join(', ') || 'None mentioned'}</p>
+                    <p>${dislikesText}</p>
                 </div>
                 <div class="feedback-section">
                     <strong>💡 Suggestions:</strong>
-                    <p>${rating.suggestions}</p>
+                    <p>${escapeHtml(rating.suggestions)}</p>
                 </div>
             </div>
         `;

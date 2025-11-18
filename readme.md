@@ -19,9 +19,11 @@ The Virtuous Content Cycle is a powerful API designed to iteratively improve con
 ## Tech Stack
 
 -   **Backend:** Node.js, Express, Helmet
--   **AI:** OpenAI API (configurable for different models like GPT and Claude), OpenRouter
+-   **Database:** SQLite (better-sqlite3)
+-   **AI:** OpenRouter API (Sherlock Think Alpha - FREE during alpha)
 -   **Data Validation:** Zod
 -   **Concurrency Limiting:** p-limit
+-   **Testing:** Jest, Supertest
 
 ## Project Structure
 
@@ -29,16 +31,18 @@ This project follows a simple, flat structure to keep it easy to understand and 
 
 ```
 /
-├───public/             # Static files (if any)
-├───results/            # Output directory for content cycles
+├───public/             # Static files for web UI
+├───tests/              # Jest test files
 ├───aiService.js        # Handles all interactions with AI models
-├───fileService.js      # Handles reading and writing content cycle files
+├───databaseService.js  # SQLite database layer (replaces fileService)
+├───migrate.js          # Database initialization and seeding
 ├───models.js           # Zod schemas for data validation
 ├───errors.js           # Custom error classes
 ├───server.js           # The main Express server and all route logic
-├───focusGroupPersonas.json # Configuration for the AI focus group
+├───focusGroupPersonas.json # Persona configuration (seeded into database)
+├───vcc.db              # SQLite database (gitignored, created via migrate.js)
 ├───package.json
-└───readme.md
+└───README.md
 ```
 
 ## Getting Started
@@ -47,8 +51,14 @@ Follow these instructions to get the project up and running on your local machin
 
 ### Prerequisites
 
--   [Node.js](https://nodejs.org/) (v18 or later)
+-   [Node.js](https://nodejs.org/) (20 recommended, v25+ not yet supported due to better-sqlite3 native module compatibility). Use nvm use (or equivalent) before running tests.
 -   `npm`
+-   **Note**: If you encounter native module errors with `better-sqlite3`, use Node v20:
+    ```bash
+    # Using nvm (recommended)
+    nvm use 20
+    # Or install Node 20 from https://nodejs.org/
+    ```
 
 ### Installation
 
@@ -63,11 +73,21 @@ Follow these instructions to get the project up and running on your local machin
     npm install
     ```
 
-3.  Set up your environment variables. Create a `.env` file in the root of the project and add the following:
+3.  Set up your environment variables:
+    ```bash
+    cp .env.example .env
+    ```
+    Then edit `.env` and add your OpenRouter API key (or leave empty for mock mode):
     ```
     OPENROUTER_API_KEY="your_openrouter_api_key"
     ```
-    You can get an API key from [OpenRouter](https://openrouter.ai/).
+    You can get a FREE API key from [OpenRouter](https://openrouter.ai/keys).
+
+4.  Initialize the database:
+    ```bash
+    node migrate.js
+    ```
+    This will create `vcc.db` and seed it with 5 default personas.
 
 ### Running the Application
 
@@ -133,10 +153,12 @@ The application is configured through environment variables.
 -   `USE_MOCK_AI`: Set to `true` to use mock AI responses instead of real API calls. (Default: `false` if `OPENROUTER_API_KEY` is set)
 -   `OPENROUTER_API_KEY`: **(Required for live mode)** Your API key for OpenRouter. Get one at [OpenRouter](https://openrouter.ai/).
 -   `OPENROUTER_BASE_URL`: The base URL for the OpenRouter API. (Default: `https://openrouter.ai/api/v1`)
--   `OPENROUTER_FOCUS_MODEL`: The AI model to use for focus group participants. (Default: `google/gemini-1.5-flash`)
--   `OPENROUTER_EDITOR_MODEL`: The AI model to use for the editor. (Default: `anthropic/claude-3.5-sonnet`)
+-   `OPENROUTER_FOCUS_MODEL`: The AI model to use for focus group participants. (Default: `openrouter/sherlock-think-alpha` - FREE during alpha, 1.8M context, reasoning model)
+-   `OPENROUTER_EDITOR_MODEL`: The AI model to use for the editor. (Default: `openrouter/sherlock-think-alpha` - FREE during alpha, 1.8M context, reasoning model)
 -   `APP_BASE_URL`: The base URL of your application, used in the `Referer` header. (Default: `http://localhost:3000`)
 -   `APP_NAME`: The name of your application, used in the `X-Title` header. (Default: `Virtuous Content Cycle`)
+
+**Note**: Sherlock Think Alpha and Sherlock Dash Alpha are FREE frontier models during alpha testing. Alternative paid models include `anthropic/claude-3.5-sonnet` (excellent quality) and `google/gemini-1.5-flash` (fast & cheap).
 
 ### Development Configuration
 

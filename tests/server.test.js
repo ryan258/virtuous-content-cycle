@@ -26,7 +26,7 @@ describe('Content Creation', () => {
     expect(response.status).toBe(201);
     expect(response.body).toHaveProperty('id');
     expect(response.body).toHaveProperty('cycle', 1);
-    expect(response.body).toHaveProperty('status', 'created');
+    expect(response.body).toHaveProperty('status', 'awaiting_focus_group');
     expect(response.body.originalInput).toBe('Test content for refinement');
   });
 

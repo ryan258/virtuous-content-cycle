@@ -2,8 +2,9 @@ const OpenAI = require('openai');
 const personas = require('./focusGroupPersonas.json');
 
 const useMockAi = (process.env.USE_MOCK_AI || '').toLowerCase() === 'true' || !process.env.OPENROUTER_API_KEY;
-const defaultEditorModel = 'anthropic/claude-3.5-sonnet';
-const defaultFocusModel = 'google/gemini-1.5-flash';
+// Sherlock Think Alpha: reasoning model, better for thoughtful content feedback
+const defaultEditorModel = 'openrouter/sherlock-think-alpha';
+const defaultFocusModel = 'openrouter/sherlock-think-alpha';
 
 let cachedClient = null;
 
@@ -115,8 +116,8 @@ Focus group feedback summary:
 
 const getFocusGroupFeedback = async (content, focusGroupConfig = {}) => {
   const { focusModel } = getModels();
-  const targetMarketCount = focusGroupConfig.targetMarketCount || 3;
-  const randomCount = focusGroupConfig.randomCount || 2;
+  const targetMarketCount = focusGroupConfig.targetMarketCount ?? 3;
+  const randomCount = focusGroupConfig.randomCount ?? 2;
 
   if (useMockAi) {
     return { feedback: buildMockFocusGroupFeedback(content, targetMarketCount, randomCount), mode: 'mock', focusModel };

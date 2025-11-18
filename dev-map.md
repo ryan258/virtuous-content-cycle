@@ -18,16 +18,16 @@ Goal: Evolve the VCC from a single-run tool into a personalized, autonomous cont
 
 **Key Tasks:**
 
-1. **\[DB\] Choose & Integrate Database:**  
+1. [x] **\[DB\] Choose & Integrate Database:**  
    * Add sqlite3 (or preferred DB) to package.json \[cite: ryan258/virtuous-content-cycle/package.json\].  
    * Create a databaseService.js to manage the connection and schema.  
-2. **\[DB\] Define Schema:**  
+2. [x] **\[DB\] Define Schema:**  
    * Create tables: ContentItems (stores id, originalInput, metadata), Cycles (stores contentId, cycleNumber, status, currentVersion, aggregatedFeedback, etc.), Personas (see Phase 2), and Feedback (stores individual persona feedback linked to a cycle).  
    * This will replace the all-in-one iterationStateSchema \[cite: ryan258/virtuous-content-cycle/models.js\] as the persistence model, though Zod should still be used for API validation.  
-3. **\[Refactor\] Update Services:**  
+3. [x] **\[Refactor\] Update Services:**  
    * Completely refactor fileService.js \[cite: ryan258/virtuous-content-cycle/fileService.js\] to be databaseService.js.  
    * Update all controller functions in server.js (e.g., createContent, runFocusGroup, userReview) to query and write to the database instead of the filesystem \[cite: ryan258/virtuous-content-cycle/server.js\].  
-4. **\[Frontend\] Code Hardening:**  
+4. [x] **\[Frontend\] Code Hardening:**  
    * **Fix XSS Vulnerability:** In public/script.js \[cite: ryan258/virtuous-content-cycle/public/script.js\], change all instances of .innerHTML that render user or AI content (like contentPreview) to use .textContent to prevent XSS.  
    * **Fix Hardcoded URL:** In public/script.js, change const API\_URL \= 'http://localhost:3000/api/content' to const API\_URL \= '/api/content' to make the app portable.
 
