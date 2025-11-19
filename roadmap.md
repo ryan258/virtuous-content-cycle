@@ -1,44 +1,110 @@
-# Roadmap & Status
+# Virtuous Content Cycle - Project Roadmap & Documentation
 
-This is a quick view of what’s done and what’s next to keep `virtuous-content-cycle` aligned with the desired flow and easy to run.
+**Status**: V1 Complete / Active
+**Last Updated**: November 19, 2025
 
-## Core Functionality
-- [x] CRUD flow hookups: create → focus group → editor → user review → history/export
-- [x] Mock AI path for local demo (`USE_MOCK_AI=true` skips OpenRouter)
-- [x] Real AI path with OpenRouter key tested end-to-end
-- [x] Configurable focus group size (target market vs. random participants)
-- [x] Selective feedback incorporation (choose which participants' feedback to use)
-- [x] Auto-run focus group after content creation
+---
 
-## Validation & Data Model
-- [x] Zod schemas for iteration state, feedback, editor pass, user review
-- [x] Default-safe metadata (costEstimate defaults to 0)
-- [ ] Convergence threshold enforcement and max-cycle guardrails in runtime
+## 1. Project Overview
 
-## Frontend UX
-- [x] Interactive dashboard with real-time status updates
-- [x] Loading states with spinners for all async operations
-- [x] Status messages (loading, success, error) for user feedback
-- [x] Right-panel detailed feedback display with individual persona cards
-- [x] Checkbox-based selective feedback incorporation
-- [x] Focus group size configuration UI
-- [x] Diff viewer for editor changes
-- [x] Disable/enable buttons by status
-- [x] Content preview showing current version
-- [x] Cycle info with status badges
-- [ ] CSV/Markdown export formats
+The **Virtuous Content Cycle (VCC)** is an iterative content improvement engine. It cycles content through a simulated focus group (AI personas) → editor refinement (AI) → user review → repeat loop.
 
-## Persistence & Files
-- [x] JSON file storage per cycle in `results/<content-id>/`
-- [ ] Migration/cleanup tools for old runs (optional)
+**Core Concept**:
+1.  **Focus Group**: Parallel AI participants (Target Market & Random) evaluate content.
+2.  **Debate**: A Moderator AI synthesizes feedback and identifies key issues.
+3.  **Editor**: An Editor AI rewrites content based on the moderator's summary and specific instructions.
+4.  **Orchestrator**: An autonomous "Chief of Staff" agent loops this process until a target quality rating is achieved.
 
-## Operations
-- [x] Dev server with nodemon (`npm run dev`)
-- [x] Nodemon configured to ignore `results/` directory (prevents restarts during content save)
-- [x] Helmet CSP configuration for CDN script loading (Chart.js, Diff.js)
-- [x] Smoke tests / Jest coverage for controllers and file service
-- [ ] CI hook (lint/test) if needed
+---
 
-## How to run
-- Local mock/demo: `USE_MOCK_AI=true npm run dev` then open http://localhost:3000
-- Real models: set `OPENROUTER_API_KEY` (and optionally `OPENROUTER_BASE_URL`) then `npm run dev`
+## 2. Current Status: V1 Complete
+
+All planned phases for the V1 release have been successfully implemented.
+
+### ✅ Phase 1: Foundation & Database
+- **SQLite Persistence**: Replaced file-based storage with `better-sqlite3` for robust data management.
+- **Schema**: Normalized tables for `ContentItems`, `Cycles`, `Personas`, and `Feedback`.
+- **Security**: XSS protection, Helmet CSP, and input validation (Zod).
+
+### ✅ Phase 2: Persona Management ("Dream Team Launchpad")
+- **Dynamic Personas**: UI to create, edit, and delete AI personas.
+- **Focus Group Config**: Select specific personas for each run.
+- **Mock Mode**: `USE_MOCK_AI=true` for local testing without API costs.
+
+### ✅ Phase 3: Core Loop Enhancements
+- **Cost Tracking**: Real-time tracking of token usage and estimated costs per cycle.
+- **Editor Instructions**: User can provide specific guidance to the AI editor.
+- **Convergence Logic**: System calculates agreement scores among focus group participants.
+
+### ✅ Phase 4: The "Debate" Step
+- **Moderator Agent**: Synthesizes raw feedback into actionable "Key Points" before the editor sees it.
+- **Reduced Noise**: Prevents the editor from being overwhelmed by contradictory feedback.
+
+### ✅ Phase 5: The "Chief of Staff" Orchestrator
+- **Autonomous Loop**: "Run until rating > 8.5" functionality.
+- **Auto-Stop**: Stops on max cycles or target achievement.
+- **Real-time Logs**: Live progress updates in the UI.
+
+---
+
+## 3. Technical Architecture
+
+### Technology Stack
+- **Runtime**: Node.js 18+
+- **Framework**: Express.js
+- **Database**: SQLite (`better-sqlite3`)
+- **AI Provider**: OpenRouter (supporting Gemini, Claude, Sherlock, etc.)
+- **Frontend**: Vanilla JS + HTML/CSS (No build step required)
+
+### Data Schema
+- **ContentItems**: Stores base metadata (original input, target audience, cost settings).
+- **Cycles**: Tracks each iteration (version text, average rating, moderator summary).
+- **Feedback**: Individual ratings and comments from each persona per cycle.
+- **Personas**: System prompts and metadata for AI participants.
+
+### Key Design Decisions
+- **Why SQLite?**: Zero-config, single-file database perfect for this scale. Removes the complexity of a separate DB server while offering full SQL power.
+- **Why OpenRouter?**: Avoids vendor lock-in. Allows mixing cheap models (Gemini Flash) for focus groups with smart models (Claude Sonnet) for editing.
+- **Why Vanilla JS?**: Keeps the project lightweight and hackable. No complex React/Vue build chains to maintain.
+
+---
+
+## 4. Historical Context & Fixes (Phase 1)
+
+During the initial build, several critical issues were identified and resolved. This section serves as a record of those fixes.
+
+### Critical Fixes
+1.  **Cost Persistence**: `costEstimate` was initially dropped. Added migration and column to `ContentItems` to persist user budgets.
+2.  **Zero-Value Handling**: Fixed a bug where `randomCount: 0` was treated as falsy and forced to default (2). Replaced `||` with `??` throughout the codebase.
+3.  **Status History**: Added `statusHistory` JSON column to `Cycles` to track state changes over time.
+4.  **Transaction Safety**: Wrapped multi-step operations (like `createContent` and `runFocusGroup`) in database transactions to prevent orphaned records.
+5.  **XSS Protection**: Switched from `.innerHTML` to `.textContent` for rendering user/AI content in the frontend.
+
+### Known Limitations (V1)
+- **Node Version**: Requires Node v18-v20. Node v25+ has binary incompatibility with `better-sqlite3` (v115 vs v127).
+- **Single User**: No authentication or multi-user separation.
+
+---
+
+## 5. Future Roadmap (Post-V1)
+
+### 🚀 Near Term
+- [ ] **CSV/Markdown Export**: Export full cycle history for external analysis.
+- [ ] **Prompt Library**: Save and reuse effective editor instructions.
+- [ ] **Persona Marketplace**: Import/export personas as JSON.
+
+### 🔭 Long Term
+- [ ] **Multi-User Support**: User auth and private workspaces.
+- [ ] **Cloud Migration**: Switch from SQLite to Postgres for scalable deployments.
+- [ ] **Real-time Streaming**: Stream AI responses token-by-token (WebSockets).
+- [ ] **Advanced Analytics**: Cross-content trends (e.g., "Which persona is consistently the harshest?").
+
+---
+
+## 6. How to Run
+
+1.  **Install**: `npm install`
+2.  **Setup**: `cp .env.example .env` (Add OpenRouter Key)
+3.  **Migrate**: `node migrate.js` (Seeds DB)
+4.  **Run**: `npm run dev`
+5.  **View**: http://localhost:3000
