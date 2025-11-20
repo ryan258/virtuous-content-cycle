@@ -1,4 +1,0 @@
-{
-  "ignore": ["results/", "*.log", ".git/"],
-  "ext": "js"
-}
