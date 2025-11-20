@@ -1,5 +1,7 @@
 const OpenAI = require('openai');
 const databaseService = require('./databaseService');
+const pLimit = require('p-limit');
+const logger = require('./logger');
 const fallbackFocusGroupPersonas = require('./focusGroupPersonas.json');
 
 const useMockAi = (process.env.USE_MOCK_AI || '').toLowerCase() === 'true' || !process.env.OPENROUTER_API_KEY;
@@ -134,7 +136,7 @@ ${editorInstructions ? `\nAdditional editor instructions: ${editorInstructions}`
   }
 };
 
-const getFocusGroupFeedback = async (content, focusGroupConfig = {}) => {
+const getFocusGroupFeedback = async (content, focusGroupConfig = {}, targetAudience = '') => {
   const { focusModel } = getModels();
   const targetMarketCount = focusGroupConfig.targetMarketCount ?? DEFAULT_TARGET_MARKET_COUNT;
   const randomCount = focusGroupConfig.randomCount ?? DEFAULT_RANDOM_COUNT;
@@ -156,7 +158,7 @@ const getFocusGroupFeedback = async (content, focusGroupConfig = {}) => {
   }
 
   try {
-    const feedback = await Promise.all(selectedPersonas.map(persona => getFeedbackFromPersona(content, persona, focusModel)));
+    const feedback = await Promise.all(selectedPersonas.map(persona => getFeedbackFromPersona(content, persona, focusModel, targetAudience)));
     const valid = feedback.filter(f => !f.error && typeof f.rating === 'number' && f.rating > 0);
     if (valid.length === 0) {
       console.warn('Focus group API returned no valid feedback; using mock fallback.');
@@ -302,21 +304,44 @@ Suggestions: ${f.suggestions}
   }
 };
 
-const getFeedbackFromPersona = async (content, persona, focusModel) => {
+const getFeedbackFromPersona = async (content, persona, focusModel, targetAudience) => {
   try {
     const client = getClient();
+
+    const messages = [
+      { role: 'system', content: persona.systemPrompt },
+      {
+        role: 'user', content: `Here is the content to evaluate:
+
+${content}
+
+${targetAudience ? `The intended target audience for this content is: ${targetAudience}. Keep this in mind while evaluating.` : ''}`
+      },
+      { role: 'user', content: 'Please provide your feedback in JSON format with the following keys: "rating" (1-10), "likes" (array of strings), "dislikes" (array of strings), "suggestions" (string).' },
+    ];
+
+    logger.info('AI Request Started', {
+      type: 'focus_group_feedback',
+      participantId: persona.id,
+      model: focusModel,
+      messages
+    });
+
     const response = await client.chat.completions.create({
       model: focusModel,
-      messages: [
-        { role: 'system', content: persona.systemPrompt },
-        { role: 'user', content: `Here is the content to evaluate:
-
-${content}` },
-        { role: 'user', content: 'Please provide your feedback in JSON format with the following keys: "rating" (1-10), "likes" (array of strings), "dislikes" (array of strings), "suggestions" (string).' },
-      ],
+      messages,
     });
 
     const feedback = JSON.parse(response.choices[0].message.content);
+
+    logger.info('AI Request Completed', {
+      type: 'focus_group_feedback',
+      model: focusModel,
+      participantId: persona.id,
+      tokens: response.usage?.total_tokens,
+      cost: calculateCost(response),
+      fullResponse: response.choices[0].message.content
+    });
 
     return {
       participantId: persona.id,
@@ -334,6 +359,11 @@ ${content}` },
       }
     };
   } catch (error) {
+    logger.error('AI Request Failed', {
+      type: 'focus_group_feedback',
+      participantId: persona.id,
+      error: error.message
+    });
     console.error(`Error getting feedback from persona ${persona.id}:`, error);
     // Return a default error response or re-throw the error
     return {
@@ -352,69 +382,69 @@ ${content}` },
 };
 
 const aggregateFeedback = (feedback) => {
-    const ratings = feedback.map(f => f.rating).filter(r => r > 0);
-    const averageRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
+  const ratings = feedback.map(f => f.rating).filter(r => r > 0);
+  const averageRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
 
-    const ratingDistribution = {
-        '1-3': feedback.filter(f => f.rating >= 1 && f.rating <= 3).length,
-        '4-6': feedback.filter(f => f.rating >= 4 && f.rating <= 6).length,
-        '7-10': feedback.filter(f => f.rating >= 7 && f.rating <= 10).length,
-    };
+  const ratingDistribution = {
+    '1-3': feedback.filter(f => f.rating >= 1 && f.rating <= 3).length,
+    '4-6': feedback.filter(f => f.rating >= 4 && f.rating <= 6).length,
+    '7-10': feedback.filter(f => f.rating >= 7 && f.rating <= 10).length,
+  };
 
-    const allLikes = feedback.flatMap(f => f.likes);
-    const topLikes = getTopItems(allLikes);
+  const allLikes = feedback.flatMap(f => f.likes);
+  const topLikes = getTopItems(allLikes);
 
-    const allDislikes = feedback.flatMap(f => f.dislikes);
-    const topDislikes = getTopItems(allDislikes);
-    
-    const feedbackThemes = getFeedbackThemes(allLikes, allDislikes);
+  const allDislikes = feedback.flatMap(f => f.dislikes);
+  const topDislikes = getTopItems(allDislikes);
 
-    const convergenceScore = calculateConvergenceScore(ratings);
+  const feedbackThemes = getFeedbackThemes(allLikes, allDislikes);
 
-    return {
-        averageRating,
-        ratingDistribution,
-        topLikes,
-        topDislikes,
-        convergenceScore,
-        feedbackThemes,
-    };
+  const convergenceScore = calculateConvergenceScore(ratings);
+
+  return {
+    averageRating,
+    ratingDistribution,
+    topLikes,
+    topDislikes,
+    convergenceScore,
+    feedbackThemes,
+  };
 };
 
 const getTopItems = (items) => {
-    const frequency = items.reduce((acc, item) => {
-        acc[item] = (acc[item] || 0) + 1;
-        return acc;
-    }, {});
+  const frequency = items.reduce((acc, item) => {
+    acc[item] = (acc[item] || 0) + 1;
+    return acc;
+  }, {});
 
-    return Object.entries(frequency)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(entry => entry[0]);
+  return Object.entries(frequency)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(entry => entry[0]);
 };
 
 const getFeedbackThemes = (likes, dislikes) => {
-    const themes = {};
+  const themes = {};
 
-    likes.forEach(like => {
-        const theme = like.toLowerCase();
-        themes[theme] = themes[theme] || { frequency: 0, sentiment: 'positive' };
-        themes[theme].frequency++;
-    });
+  likes.forEach(like => {
+    const theme = like.toLowerCase();
+    themes[theme] = themes[theme] || { frequency: 0, sentiment: 'positive' };
+    themes[theme].frequency++;
+  });
 
-    dislikes.forEach(dislike => {
-        const theme = dislike.toLowerCase();
-        themes[theme] = themes[theme] || { frequency: 0, sentiment: 'negative' };
-        themes[theme].frequency++;
-        if (themes[theme].sentiment === 'positive') {
-            themes[theme].sentiment = 'neutral';
-        }
-    });
+  dislikes.forEach(dislike => {
+    const theme = dislike.toLowerCase();
+    themes[theme] = themes[theme] || { frequency: 0, sentiment: 'negative' };
+    themes[theme].frequency++;
+    if (themes[theme].sentiment === 'positive') {
+      themes[theme].sentiment = 'neutral';
+    }
+  });
 
-    return Object.entries(themes).map(([theme, data]) => ({
-        theme,
-        ...data
-    }));
+  return Object.entries(themes).map(([theme, data]) => ({
+    theme,
+    ...data
+  }));
 };
 
 function buildMockFocusGroupFeedback(content, selectedPersonas = []) {

@@ -27,11 +27,22 @@ The Virtuous Content Cycle (VCC 2.0) is a powerful autonomous content refinement
 -   **Smart Termination:** Stops immediately when target is met to avoid wasteful API calls.
 -   **Real-Time Logs:** See cycle-by-cycle progress as the orchestrator works.
 
+### Gamification & UX
+-   **Avatars:** Procedural avatars for each persona (DiceBear API) to humanize feedback.
+-   **Visual Stats:** Progress bars for quality and consensus.
+-   **Loading Chatter:** Entertaining status updates during AI processing.
+-   **Confetti:** Celebratory animation when target goals are met.
+
+### Content Dashboard
+-   **History Sidebar:** Persistent access to all previous content items.
+-   **One-Click Restore:** Instantly load any past project.
+
 ### Metrics & Transparency
 -   **Convergence Score:** Measures agreement among focus group participants (0-1 scale).
--   **Cost Tracking:** Track token usage and costs across all cycles (requires manual rate configuration).
+-   **Cost Tracking:** Track token usage and costs across all cycles.
 -   **Full History:** All versions, feedback, moderator summaries, and metrics saved per cycle.
 -   **Exportable Results:** Export entire content history as JSON.
+-   **Logging:** Detailed Winston logs (`logs/combined.log`) including full AI prompts/responses.
 
 ### Developer Experience
 -   **Web UI:** Three-tab interface (Content, Personas, Orchestrator) for complete workflow management.
@@ -63,6 +74,8 @@ This project follows a simple, flat structure to keep it easy to understand and 
 ├───models.js                  # Zod schemas for API validation
 ├───errors.js                  # Custom error classes
 ├───server.js                  # Express server and all route logic
+├───logger.js                  # Winston logger configuration
+├───logs/                      # Directory for application logs
 ├───focusGroupPersonas.json    # Default personas (seeded into database on first run)
 ├───vcc.db                     # SQLite database (gitignored, auto-created)
 ├───package.json

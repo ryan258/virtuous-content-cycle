@@ -3,26 +3,25 @@ const express = require('express');
 const helmet = require('helmet');
 const crypto = require('crypto');
 const { iterationStateSchema, userEditSchema } = require('./models.js');
-const databaseService = require('./databaseService.js');
-const aiService = require('./aiService.js');
-const { BadRequestError, NotFoundError } = require('./errors.js');
+const databaseService = require('./databaseService');
+const aiService = require('./aiService');
+const { AppError, NotFoundError, BadRequestError } = require('./errors');
 const focusGroupPersonas = require('./focusGroupPersonas.json');
 const orchestratorService = require('./orchestratorService');
+const logger = require('./logger');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
 // Configure Helmet with relaxed CSP for CDN scripts
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: [
-        "'self'",
-        "https://cdn.jsdelivr.net"
-      ],
-      connectSrc: ["'self'", "https://cdn.jsdelivr.net"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://api.dicebear.com"],
+      connectSrc: ["'self'", "https://cdn.jsdelivr.net", "https://api.dicebear.com"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
+      imgSrc: ["'self'", "data:", "https:", "https://api.dicebear.com"],
     },
   },
 }));
@@ -30,23 +29,72 @@ app.use(helmet({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    logger.info('HTTP Request', {
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      duration: `${duration}ms`,
+      userAgent: req.get('user-agent'),
+      ip: req.ip
+    });
+  });
+  next();
+});
+
 app.use(express.static('public'));
 
-// Seed personas on startup only if database is empty
-try {
-  const existingPersonas = databaseService.getAllPersonas();
-  if (existingPersonas.length === 0) {
-    console.log('📝 Seeding default personas...');
-    databaseService.seedPersonas(focusGroupPersonas);
-  } else {
-    console.log(`✅ Found ${existingPersonas.length} personas, skipping seed`);
+const getAllContent = (req, res) => {
+  try {
+    const items = databaseService.getAllContentItems();
+    // Enrich items with latest cycle info for the dashboard
+    const enrichedItems = items.map(item => {
+      const latestCycleNum = databaseService.getLatestCycleNumber(item.id);
+      const latestCycle = latestCycleNum > 0 ? databaseService.getCycleByContentAndNumber(item.id, latestCycleNum) : null;
+      return {
+        ...item,
+        latestCycle: latestCycle ? {
+          cycleNumber: latestCycle.cycleNumber,
+          status: latestCycle.status,
+          averageRating: latestCycle.averageRating
+        } : null
+      };
+    });
+    res.json(enrichedItems);
+  } catch (error) {
+    next(error);
   }
-} catch (err) {
-  console.error('Failed to seed personas on startup:', err);
-  throw err;
-}
+};
 
+// Start Server
+app.listen(PORT, () => {
+  try {
+    // Initialize database
+    databaseService.initializeSchema();
+
+    // Seed default personas if none exist
+    const existingPersonas = databaseService.getAllPersonas();
+    if (existingPersonas.length === 0) {
+      logger.info('📝 Seeding default personas...');
+      const defaultPersonas = require('./focusGroupPersonas.json');
+      databaseService.seedPersonas(defaultPersonas);
+      logger.info('✅ Default personas seeded');
+    } else {
+      logger.info(`✅ Found ${existingPersonas.length} personas, skipping seed`);
+    }
+
+    logger.info(`Server is running on port ${PORT}`);
+  } catch (error) {
+    logger.error('Failed to initialize application:', error);
+    process.exit(1);
+  }
+});
 // Routes
+app.get('/api/content', getAllContent);
 app.post('/api/content/create', createContent);
 app.get('/api/content/:id', getContent);
 app.post('/api/content/:id/run-focus-group', runFocusGroup);
@@ -208,7 +256,11 @@ async function runFocusGroup(req, res, next) {
       personaIds
     };
 
-    const { feedback: focusGroupRatings, mode: aiMode, lastError: aiError, focusModel } = await aiService.getFocusGroupFeedback(cycle.currentVersion, focusGroupConfig);
+    const { feedback: focusGroupRatings, mode: aiMode, lastError: aiError, focusModel } = await aiService.getFocusGroupFeedback(
+      cycle.currentVersion,
+      focusGroupConfig,
+      contentItem.targetAudience
+    );
     const aggregatedFeedback = aiService.aggregateFeedback(focusGroupRatings);
 
     // Wrap all database writes in a transaction for atomicity
@@ -313,17 +365,17 @@ async function runEditor(req, res, next) {
     const feedbackToUse = selectedParticipantIds && selectedParticipantIds.length > 0
       ? aiService.aggregateFeedback(selectedFeedback)
       : {
-          averageRating: cycle.averageRating,
-          convergenceScore: cycle.convergenceScore,
-          ratingDistribution: {
-            '1-3': cycle.ratingDistLow,
-            '4-6': cycle.ratingDistMid,
-            '7-10': cycle.ratingDistHigh
-          },
-          topLikes: JSON.parse(cycle.topLikes || '[]'),
-          topDislikes: JSON.parse(cycle.topDislikes || '[]'),
-          feedbackThemes: JSON.parse(cycle.feedbackThemes || '[]')
-        };
+        averageRating: cycle.averageRating,
+        convergenceScore: cycle.convergenceScore,
+        ratingDistribution: {
+          '1-3': cycle.ratingDistLow,
+          '4-6': cycle.ratingDistMid,
+          '7-10': cycle.ratingDistHigh
+        },
+        topLikes: JSON.parse(cycle.topLikes || '[]'),
+        topDislikes: JSON.parse(cycle.topDislikes || '[]'),
+        feedbackThemes: JSON.parse(cycle.feedbackThemes || '[]')
+      };
 
     const moderatorSummary = await aiService.runFeedbackDebate(selectedFeedback);
 
@@ -515,7 +567,7 @@ async function exportContent(req, res, next) {
     } else {
       res.header('Content-Type', 'application/json');
       res.attachment(`content-${id}.json`);
-      res.send(iterationStates);
+      res.send(JSON.stringify(iterationStates, null, 2));
     }
   } catch (error) {
     next(error);
@@ -614,17 +666,27 @@ async function deletePersona(req, res, next) {
   }
 };
 
-// Error Handler
+// Error Handling Middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Something went wrong!';
-    res.status(statusCode).json({
-      status: 'error',
-      statusCode,
-      message
-    });
+  logger.error('Unhandled Error:', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
   });
+
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({
+      status: 'error',
+      message: err.message,
+    });
+  }
+
+  res.status(500).json({
+    status: 'error',
+    message: 'Internal Server Error',
+  });
+});
 
 async function runOrchestrator(req, res, next) {
   try {
@@ -635,8 +697,8 @@ async function runOrchestrator(req, res, next) {
     if (targetRating > 10 || targetRating <= 0) {
       throw new BadRequestError('targetRating must be between 0 and 10');
     }
-    if (maxCycles <= 0 || maxCycles > 10) {
-      throw new BadRequestError('maxCycles must be between 1 and 10');
+    if (maxCycles <= 0 || maxCycles > 20) {
+      throw new BadRequestError('maxCycles must be between 1 and 20');
     }
     if (Array.isArray(personaIds) && personaIds.length > 0) {
       const personas = databaseService.getPersonasByIds(personaIds);
@@ -658,12 +720,8 @@ async function runOrchestrator(req, res, next) {
 }
 
 
-const PORT = process.env.PORT || 3000;
 
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
-}
+
+
 
 module.exports = app;

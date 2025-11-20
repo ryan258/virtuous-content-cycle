@@ -13,7 +13,7 @@ This document outlines the "happy path" workflows for using VCC 2.0 - both via t
 
 The easiest way to use the system is through the web interface at `http://localhost:3000`.
 
-The UI has three tabs: **Content**, **Personas**, and **Orchestrator**.
+The UI has three tabs: **Content**, **Personas**, and **Orchestrator**. It also features a **History Sidebar** on the left for easy access to past projects.
 
 ### Manual Workflow (Content Tab)
 

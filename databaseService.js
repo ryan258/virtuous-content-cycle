@@ -623,7 +623,7 @@ const getIterationState = (contentId, cycleNumber) => {
  */
 const seedPersonas = (personas) => {
   const insertStmt = db.prepare(`
-    INSERT OR IGNORE INTO Personas (id, name, type, persona, systemPrompt, createdAt, updatedAt)
+    INSERT OR REPLACE INTO Personas (id, name, type, persona, systemPrompt, createdAt, updatedAt)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
@@ -682,5 +682,6 @@ module.exports = {
 
   // Utility
   closeDatabase,
+  initializeSchema,
   db // Export db instance for advanced queries if needed
 };

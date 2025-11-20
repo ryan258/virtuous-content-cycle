@@ -11,20 +11,73 @@ body {
     background: #fff;
     padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
     color: #333;
 }
 
 .main-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
     gap: 20px;
 }
 
+.history-sidebar {
+    flex: 0 0 250px;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    height: fit-content;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.history-item {
+    padding: 10px;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.history-item:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.history-item.active {
+    background: #eff6ff;
+    border-color: #3b82f6;
+}
+
+.history-item-title {
+    font-weight: 600;
+    font-size: 0.9em;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-item-meta {
+    font-size: 0.8em;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+}
+
 .left-column {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -36,13 +89,16 @@ h1, h2, h3 {
     gap: 20px;
 }
 
-.create-content, .results-dashboard, .actions {
+.create-content,
+.results-dashboard,
+.actions {
     background: #f9f9f9;
     padding: 15px;
     border-radius: 5px;
 }
 
-textarea, input[type="text"] {
+textarea,
+input[type="text"] {
     width: 100%;
     padding: 8px;
     margin-bottom: 10px;
@@ -240,7 +296,8 @@ button:disabled {
     border-radius: 6px;
 }
 
-.persona-form, .persona-list {
+.persona-form,
+.persona-list {
     background: #fff;
     padding: 15px;
     border-radius: 6px;
@@ -346,8 +403,13 @@ button:disabled {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 button.loading {
@@ -629,4 +691,38 @@ button.loading::before {
 .focus-group-config .participant-total span {
     color: #007bff;
     font-size: 16px;
+}
+
+/* Gamification Styles */
+.stat-card {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 2em;
+    font-weight: 800;
+}
+
+.progress-bar-bg {
+    background: #eee;
+    height: 8px;
+    border-radius: 4px;
+    margin-top: 5px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    transition: width 0.5s ease;
+}
+
+.persona-avatar {
+    border-radius: 50%;
+    margin-right: 10px;
+    border: 2px solid #eee;
 }

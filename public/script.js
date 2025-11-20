@@ -91,12 +91,58 @@ function hideStatus(element) {
     element.innerHTML = '';
 }
 
-function setButtonLoading(button, loading) {
+function setButtonLoading(button, loading, statusElement = null) {
     if (loading) {
         button.classList.add('loading');
         button.disabled = true;
+
+        // Start loading chatter if status element is provided
+        if (statusElement) {
+            const messages = [
+                "Briefing the personas...",
+                "Target Market is putting on their reading glasses...",
+                "Random Persona is asking what 'ROI' means...",
+                "Moderator is sipping coffee...",
+                "Synthesizing arguments...",
+                "Checking for typos...",
+                "Consulting the style guide...",
+                "Gathering consensus...",
+                "Debating the Oxford comma...",
+                "Calibrating sarcasm detectors..."
+            ];
+
+            // Clear any existing interval on this element to be safe
+            if (statusElement.dataset.intervalId) {
+                clearInterval(parseInt(statusElement.dataset.intervalId));
+            }
+
+            let msgIndex = 0;
+            // Randomize start
+            msgIndex = Math.floor(Math.random() * messages.length);
+
+            const intervalId = setInterval(() => {
+                msgIndex = (msgIndex + 1) % messages.length;
+                // Only update if the element still has the loading class/spinner
+                if (statusElement.querySelector('.spinner')) {
+                    const spinner = statusElement.querySelector('.spinner');
+                    // Keep spinner, update text
+                    statusElement.innerHTML = '';
+                    statusElement.appendChild(spinner);
+                    statusElement.appendChild(document.createTextNode(` ${messages[msgIndex]}`));
+                }
+            }, 2500);
+
+            statusElement.dataset.intervalId = intervalId;
+        }
     } else {
         button.classList.remove('loading');
+        button.disabled = false; // Re-enable button
+
+        // Clear chatter interval
+        if (statusElement && statusElement.dataset.intervalId) {
+            clearInterval(parseInt(statusElement.dataset.intervalId));
+            delete statusElement.dataset.intervalId;
+        }
     }
 }
 
@@ -127,23 +173,60 @@ function updateCycleInfo(data) {
         'user_review_complete': 'Review Complete'
     };
 
+    const agg = data.aggregatedFeedback || { averageRating: 0, convergenceScore: 0 };
+
+    // Dynamic color for rating
+    const ratingColor = agg.averageRating > 8 ? '#4ade80' : agg.averageRating > 5 ? '#facc15' : '#f87171';
+    const convergenceColor = agg.convergenceScore > 0.7 ? '#4ade80' : agg.convergenceScore > 0.4 ? '#facc15' : '#f87171';
+
     // Use escapeHtml for user-provided data
     cycleInfo.innerHTML = `
         <h3>Cycle ${data.cycle} <span class="status-badge ${data.status}">${statusDisplay[data.status] || escapeHtml(data.status)}</span></h3>
+        
+        <div style="display: flex; gap: 15px; margin: 15px 0;">
+            <div class="stat-card" style="flex: 1;">
+                <div class="stat-label">Quality Level</div>
+                <div class="stat-value" style="color: ${ratingColor}">${agg.averageRating.toFixed(1)}</div>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${agg.averageRating * 10}%; background: ${ratingColor}"></div></div>
+            </div>
+            <div class="stat-card" style="flex: 1;">
+                <div class="stat-label">Team Consensus</div>
+                <div class="stat-value" style="color: ${convergenceColor}">${(agg.convergenceScore * 100).toFixed(0)}%</div>
+                 <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${agg.convergenceScore * 100}%; background: ${convergenceColor}"></div></div>
+            </div>
+        </div>
+
         <p><strong>Content Type:</strong> ${escapeHtml(data.metadata.contentType)}</p>
         <p><strong>Target Audience:</strong> ${escapeHtml(data.metadata.targetAudience)}</p>
         <p><strong>Max Cycles:</strong> ${data.metadata.maxCycles}</p>
     `;
+
+    // Trigger confetti if rating is high
+    console.log('🎉 Checking confetti trigger. Rating:', agg.averageRating, 'Confetti lib:', typeof confetti);
+    if (agg.averageRating >= 8.5 && typeof confetti === 'function') {
+        console.log('🎉 Confetti triggered!');
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    }
 }
 
 function updateContentPreview(data) {
-    const version = data.editorPass ? 'Latest (After Editor)' : 'Original';
+    let label = 'Current Draft';
+    if (data.status === 'created' || data.status === 'awaiting_focus_group') {
+        label = 'Draft for Focus Group Review';
+    } else if (data.status === 'focus_group_complete') {
+        label = 'Draft Reviewed by Focus Group';
+    } else if (data.status === 'editor_complete') {
+        label = 'Revised Draft (After Editor)';
+    } else if (data.status === 'user_review_complete') {
+        label = 'Finalized Draft';
+    }
+
     const content = data.currentVersion;
 
     // Safely build the preview without innerHTML
     contentPreview.innerHTML = '';
     const h3 = document.createElement('h3');
-    h3.textContent = `Content Version: ${version}`;
+    h3.textContent = label;
     const pre = document.createElement('pre');
     pre.textContent = content;
     contentPreview.appendChild(h3);
@@ -191,16 +274,25 @@ function displayDetailedFeedback(data) {
         const ratingClass = rating.rating >= 7 ? '' : rating.rating >= 4 ? 'medium' : 'low';
         const likesText = rating.likes.map(escapeHtml).join(', ') || 'None mentioned';
         const dislikesText = rating.dislikes.map(escapeHtml).join(', ') || 'None mentioned';
+
+        // Generate avatar URL based on participant ID (deterministic)
+        const avatarUrl = `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(rating.participantId)}`;
+
         return `
             <div class="persona-card" data-participant-id="${escapeHtml(rating.participantId)}">
                 <div class="card-header">
-                    <input type="checkbox" class="feedback-checkbox" data-participant-id="${escapeHtml(rating.participantId)}" checked>
-                    <h3>
-                        <span>${escapeHtml(rating.participantId)}</span>
-                        <span class="rating-badge ${ratingClass}">${rating.rating}/10</span>
-                    </h3>
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+                        <input type="checkbox" class="feedback-checkbox" data-participant-id="${escapeHtml(rating.participantId)}" checked>
+                        <img src="${avatarUrl}" class="persona-avatar" width="40" height="40" alt="Avatar">
+                        <div style="flex: 1;">
+                            <h3>
+                                <span>${escapeHtml(rating.participantId)}</span>
+                                <span class="rating-badge ${ratingClass}">${rating.rating}/10</span>
+                            </h3>
+                            <p style="margin: 0;" class="muted"><em>${rating.participantType === 'target_market' ? '🎯 Target Market' : '🌐 Random Participant'}</em></p>
+                        </div>
+                    </div>
                 </div>
-                <p><em>${rating.participantType === 'target_market' ? '🎯 Target Market' : '🌐 Random Participant'}</em></p>
                 <div class="feedback-section">
                     <strong>👍 Likes:</strong>
                     <p>${likesText}</p>
@@ -348,7 +440,7 @@ async function savePersona() {
     const method = editingPersonaId ? 'PUT' : 'POST';
     const url = editingPersonaId ? `/api/personas/${encodeURIComponent(editingPersonaId)}` : '/api/personas';
 
-    setButtonLoading(savePersonaBtn, true);
+    setButtonLoading(savePersonaBtn, true, personaFormStatus);
     showStatus(personaFormStatus, editingPersonaId ? 'Updating persona...' : 'Creating persona...');
 
     try {
@@ -375,7 +467,7 @@ async function savePersona() {
 async function handleDeletePersona(id) {
     if (!id) return;
     if (!confirm('Are you sure you want to delete this persona?')) return;
-    setButtonLoading(savePersonaBtn, true);
+    setButtonLoading(savePersonaBtn, true, personaFormStatus);
     showStatus(personaFormStatus, 'Deleting persona...');
     try {
         const response = await fetch(`/api/personas/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -431,13 +523,13 @@ runOrchestratorBtn.addEventListener('click', async () => {
         showStatus(orchestratorStatus, 'Target rating must be between 1 and 10.', 'error');
         return;
     }
-    if (maxCycles <= 0 || maxCycles > 10) {
-        showStatus(orchestratorStatus, 'Max cycles must be between 1 and 10.', 'error');
+    if (maxCycles <= 0 || maxCycles > 20) {
+        showStatus(orchestratorStatus, 'Max cycles must be between 1 and 20.', 'error');
         return;
     }
 
     showStatus(orchestratorStatus, 'Running orchestrator...');
-    setButtonLoading(runOrchestratorBtn, true);
+    setButtonLoading(runOrchestratorBtn, true, orchestratorStatus);
     orchestratorLog.textContent = '';
 
     try {
@@ -456,6 +548,13 @@ runOrchestratorBtn.addEventListener('click', async () => {
         if (data.finalState) {
             currentContentId = data.finalState.id;
             updateUI(data.finalState);
+
+            // Switch back to content tab to show the result
+            setTimeout(() => {
+                setActiveTab('content');
+                // Scroll to preview
+                contentPreview.scrollIntoView({ behavior: 'smooth' });
+            }, 1500);
         }
     } catch (error) {
         console.error('Error running orchestrator:', error);
@@ -483,7 +582,7 @@ createBtn.addEventListener('click', async () => {
         return;
     }
 
-    setButtonLoading(createBtn, true);
+    setButtonLoading(createBtn, true, statusMessage);
     showStatus(statusMessage, 'Creating content...');
 
     try {
@@ -495,7 +594,7 @@ createBtn.addEventListener('click', async () => {
                 metadata: {
                     contentType,
                     targetAudience,
-                    maxCycles: 5,
+                    maxCycles: 10,
                     convergenceThreshold: 0.8,
                     focusGroupConfig: {
                         targetMarketCount: selectedPersonaIds.length,
@@ -519,6 +618,7 @@ createBtn.addEventListener('click', async () => {
         showStatus(statusMessage, 'Content created! Starting focus group...', 'success');
 
         updateUI(data);
+        loadHistory(); // Refresh history list
 
         // Automatically run focus group
         runFocusGroupAutomatically();
@@ -532,6 +632,34 @@ createBtn.addEventListener('click', async () => {
     }
 });
 
+async function loadContent(id) {
+    console.log('Loading content:', id);
+    try {
+        const response = await fetch(`/api/content/${id}`);
+        if (!response.ok) throw new Error('Failed to load content');
+
+        const data = await response.json();
+        currentContentId = data.id;
+        currentCycle = data.cycle;
+
+        contentIdDisplay.textContent = `Content ID: ${currentContentId}`;
+        updateUI(data);
+
+        // Highlight in history
+        const historyItems = document.querySelectorAll('.history-item');
+        historyItems.forEach(item => {
+            if (item.getAttribute('data-id') === id) {
+                item.classList.add('active');
+            } else {
+                item.classList.remove('active');
+            }
+        });
+    } catch (error) {
+        console.error('Error loading content:', error);
+        alert('Failed to load content details.');
+    }
+}
+
 async function runFocusGroupAutomatically() {
     const selectedPersonaIds = getSelectedPersonaIdsFrom(personaChecklist);
     if (selectedPersonaIds.length === 0) {
@@ -540,7 +668,7 @@ async function runFocusGroupAutomatically() {
         return;
     }
 
-    setButtonLoading(runFocusGroupBtn, true);
+    setButtonLoading(runFocusGroupBtn, true, actionStatus);
     showStatus(actionStatus, 'Running focus group (this may take 30-60 seconds)...');
 
     try {
@@ -590,7 +718,7 @@ runEditorBtn.addEventListener('click', async () => {
         return;
     }
 
-    setButtonLoading(runEditorBtn, true);
+    setButtonLoading(runEditorBtn, true, actionStatus);
     showStatus(actionStatus, `Running AI editor with ${selectedParticipantIds.length} selected feedback items...`);
 
     try {
@@ -673,6 +801,19 @@ async function handleUserReview(approved, continueToNextCycle) {
         approveStopBtn.disabled = false;
         discardBtn.disabled = false;
     }
+
+    // Clear inputs on success (if we got here without error/return)
+    if (!actionStatus.classList.contains('error')) {
+        userEditsEl.value = '';
+        userNotesEl.value = '';
+
+        // Auto-run focus group if continuing
+        if (continueToNextCycle) {
+            setTimeout(() => {
+                runFocusGroupAutomatically();
+            }, 1000); // Small delay to let the user see the success message
+        }
+    }
 }
 
 exportJsonBtn.addEventListener('click', async () => {
@@ -698,6 +839,11 @@ exportJsonBtn.addEventListener('click', async () => {
 
 
 function updateUI(data) {
+    // Hide creation form if we have content
+    if (currentContentId) {
+        document.querySelector('.create-content').style.display = 'none';
+    }
+
     // Only show re-run focus group button if we're in awaiting_focus_group state
     runFocusGroupBtn.style.display = data.status === 'awaiting_focus_group' ? 'block' : 'none';
     runFocusGroupBtn.disabled = data.status !== 'awaiting_focus_group';
@@ -767,10 +913,60 @@ function renderModeratorSummary(data) {
     moderatorSummary.style.display = 'block';
 }
 
+// --- History Dashboard ---
+
+async function loadHistory() {
+    const historyList = document.getElementById('history-list');
+    try {
+        const response = await fetch('/api/content');
+        if (!response.ok) throw new Error('Failed to load history');
+
+        const items = await response.json();
+        renderHistory(items);
+    } catch (error) {
+        console.error('Error loading history:', error);
+        historyList.innerHTML = '<p class="muted">Failed to load history.</p>';
+    }
+}
+
+function renderHistory(items) {
+    const historyList = document.getElementById('history-list');
+    if (items.length === 0) {
+        historyList.innerHTML = '<p class="muted">No content yet.</p>';
+        return;
+    }
+
+    historyList.innerHTML = items.map(item => {
+        const date = new Date(item.createdAt).toLocaleDateString();
+        const status = item.latestCycle
+            ? `Cycle ${item.latestCycle.cycleNumber} • ${item.latestCycle.averageRating ? item.latestCycle.averageRating.toFixed(1) : '-'}`
+            : 'New';
+
+        return `
+            <div class="history-item ${item.id === currentContentId ? 'active' : ''}" data-id="${item.id}">
+                <div class="history-item-title" title="${escapeHtml(item.originalInput)}">${escapeHtml(item.originalInput)}</div>
+                <div class="history-item-meta">
+                    <span>${status}</span>
+                    <span>${date}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Add event listeners
+    document.querySelectorAll('.history-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const id = item.getAttribute('data-id');
+            loadContent(id);
+        });
+    });
+}
+
 // Initialize
-window.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
     setActiveTab('content');
-    await loadPersonas();
+    loadPersonas();
+    loadHistory();
 });
 
 // Removed old dashboard rendering functions - no longer needed

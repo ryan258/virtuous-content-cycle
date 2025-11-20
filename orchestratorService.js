@@ -11,7 +11,7 @@ const runOrchestration = async ({ contentId, targetRating, maxCycles, personaIds
 
   if (!contentId) throw new BadRequestError('contentId is required');
   if (!targetRating || targetRating <= 0 || targetRating > 10) throw new BadRequestError('targetRating must be between 0 and 10');
-  if (!maxCycles || maxCycles <= 0 || maxCycles > 10) throw new BadRequestError('maxCycles must be between 1 and 10');
+  if (!maxCycles || maxCycles <= 0 || maxCycles > 20) throw new BadRequestError('maxCycles must be between 1 and 20');
   if (editorInstructions && editorInstructions.length > 1000) throw new BadRequestError('editorInstructions cannot exceed 1000 characters');
 
   const contentItem = databaseService.getContentItem(contentId);

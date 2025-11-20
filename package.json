@@ -22,6 +22,7 @@
     "helmet": "^8.1.0",
     "openai": "^6.9.1",
     "p-limit": "^7.2.0",
+    "winston": "^3.18.3",
     "zod": "^4.1.12"
   },
   "devDependencies": {

@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iterative Content Refinement System</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <div class="container">
         <h1>Iterative Content Refinement System</h1>
@@ -16,13 +18,20 @@
         </div>
         <div id="content-tab" class="tab-panel">
             <div class="main-content">
+                <div class="history-sidebar">
+                    <h3>History</h3>
+                    <div id="history-list" class="history-list">
+                        <p class="muted">Loading...</p>
+                    </div>
+                </div>
                 <div class="left-column">
                     <div class="create-content">
                         <h2>Create New Content</h2>
                         <div id="status-message" class="status-message"></div>
                         <textarea id="original-input" placeholder="Enter your content here..."></textarea>
                         <input type="text" id="content-type" placeholder="Content Type (e.g., product_description)">
-                        <input type="text" id="target-audience" placeholder="Target Audience (e.g., ecommerce_shoppers)">
+                        <input type="text" id="target-audience"
+                            placeholder="Target Audience (e.g., ecommerce_shoppers)">
                         <div class="focus-group-config">
                             <h3>Persona Selection</h3>
                             <div id="persona-checklist" class="persona-checklist">
@@ -30,7 +39,8 @@
                             </div>
                             <div class="input-group">
                                 <span id="selected-persona-count">0 selected</span>
-                                <button id="refresh-personas-btn" type="button" class="small-btn">Reload Personas</button>
+                                <button id="refresh-personas-btn" type="button" class="small-btn">Reload
+                                    Personas</button>
                             </div>
                         </div>
                         <button id="create-btn">Create</button>
@@ -38,7 +48,8 @@
                     <div class="actions">
                         <h2>Actions</h2>
                         <div id="action-status" class="status-message"></div>
-                        <textarea id="editor-instructions" placeholder="Optional instructions for the editor... (e.g., 'Focus on the tone, ignore the length.')"></textarea>
+                        <textarea id="editor-instructions"
+                            placeholder="Optional instructions for the editor... (e.g., 'Focus on the tone, ignore the length.')"></textarea>
                         <div id="focus-group-summary" class="feedback-summary" style="display: none;"></div>
                         <div id="moderator-summary" class="feedback-summary" style="display: none;"></div>
                         <button id="run-focus-group-btn" disabled style="display: none;">Re-run Focus Group</button>
@@ -111,9 +122,11 @@
                     <h2>Orchestrator</h2>
                     <div id="orchestrator-status" class="status-message"></div>
                     <input type="text" id="orchestrator-content-id" placeholder="Content ID to orchestrate">
-                    <input type="number" id="orchestrator-target-rating" placeholder="Target Rating (e.g., 8.5)" step="0.1" min="1" max="10">
+                    <input type="number" id="orchestrator-target-rating" placeholder="Target Rating (e.g., 8.5)"
+                        step="0.1" min="1" max="10">
                     <input type="number" id="orchestrator-max-cycles" placeholder="Max Cycles" min="1" value="3">
-                    <textarea id="orchestrator-instructions" placeholder="Optional editor instructions for orchestration"></textarea>
+                    <textarea id="orchestrator-instructions"
+                        placeholder="Optional editor instructions for orchestration"></textarea>
                     <div>
                         <h3>Personas</h3>
                         <div id="orchestrator-persona-checklist" class="persona-checklist">
@@ -126,13 +139,16 @@
                 </div>
                 <div class="persona-list">
                     <h3>Orchestrator Log</h3>
-                    <div id="orchestrator-log" class="status-message" style="display: block; background: #fff; color: #333; border: 1px solid #ddd;"></div>
+                    <div id="orchestrator-log" class="status-message"
+                        style="display: block; background: #fff; color: #333; border: 1px solid #ddd;"></div>
                 </div>
             </div>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="script.js"></script>
 </body>
+
 </html>
